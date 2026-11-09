@@ -16,6 +16,8 @@ import {
 import ProductSearch from "./ProductSearch";
 import AccountMenu from "./AccountMenu";
 import NimiqContributions from "./NimiqContributions";
+import PersonalSavings from "./PersonalSavings";
+import { vaultDeployment } from "./savingsVault";
 import NimiqSignIn from "./NimiqSignIn";
 import {
   ArrowLeft,
@@ -356,11 +358,17 @@ export default function Workspace() {
                     Check current merchant offer
                   </button>
                 )}
+                <PersonalSavings
+                  key={"vault:" + g.id}
+                  goalId={g.id}
+                  closed={!!g.purchased}
+                />
                 <NimiqContributions
                   key={g.id}
                   goalId={g.id}
                   owner={g.role === "owner"}
                   closed={!!g.purchased}
+                  legacyOnly={!!vaultDeployment}
                 />
               </aside>
               <nav className="detail-tabs" aria-label="Plan sections">

@@ -23,3 +23,13 @@ Plan a purchase and contribute NIM from Nimiq Pay. Enable NIM savings in the det
 Provision a dedicated D1 database for this repository and replace the sample database IDs and application origins in `wrangler.jsonc`. Apply the migrations to the new D1 database. Set `NIMIQ_RPC_URL` as a Worker secret and configure `NIMIQ_NETWORK` for the intended environment. Use a trusted history node that serves the same chain as the wallet. A deployed mainnet instance and a public MIT-licensed repository are required for competition submission.
 
 See the [Nimiq Mini Apps documentation](https://nimiq.dev/mini-apps) and [Nimiq RPC integration guide](https://nimiq.dev/migration/migration-integrators).
+
+## Personal savings vault
+
+The optional vault uses the EVM wallet in Nimiq Pay. A user approves opening a vault position for a goal, then approves each deposit. Funds become withdrawable in full at the target. Before the target, only that wallet can abort and recover the whole balance. A closed position cannot be reopened. Existing native NIM transfers stay separate.
+
+For a local contract test, install Foundry Anvil, put it on PATH (or set ANVIL_PATH), and run npm run test:vault.
+
+For a Sepolia deployment, use a funded deployment wallet and a known test ERC-20. Set VAULT_CHAIN=sepolia, VAULT_RPC_URL, VAULT_TOKEN, and VAULT_DEPLOYER_PRIVATE_KEY in the deployment process, then run npm run deploy:vault. Keep the deployment key out of source and the app bundle. It grants no special authority over the vault.
+
+Set the printed VITE_SAVINGS_VAULT_CHAIN, VITE_SAVINGS_VAULT_ADDRESS, and VITE_SAVINGS_VAULT_TOKEN in the frontend build environment and rebuild. Set VITE_SAVINGS_VAULT_RPC_URL if using a public browser-accessible RPC other than the chain default. Values prefixed with VITE_ are public. Use the same wallet and deployment when returning to an existing vault. Test deposits, full withdrawal, and abort inside Nimiq Pay on Sepolia before configuring Polygon or accepting real funds.

@@ -31,10 +31,12 @@ export default function NimiqContributions({
   goalId,
   owner,
   closed,
+  legacyOnly,
 }: {
   goalId: string;
   owner: boolean;
   closed: boolean;
+  legacyOnly: boolean;
 }) {
   const path = "/api/goals/" + encodeURIComponent(goalId) + "/nimiq";
   const [summary, setSummary] = useState<Summary>();
@@ -91,13 +93,16 @@ export default function NimiqContributions({
   }
 
   const config = summary?.config;
-  if (!summary || (!config && (!summary.enabled || !owner || closed))) {
+  if (
+    !summary ||
+    (!config && (legacyOnly || !summary.enabled || !owner || closed))
+  ) {
     return message ? <p role="status">{message}</p> : null;
   }
 
   return (
     <section className="nimiq-contributions" aria-label="Nimiq contributions">
-      <h3>NIM savings</h3>
+      <h3>{legacyOnly ? "Previous NIM transfers" : "NIM savings"}</h3>
       {config ? (
         <>
           <p>
@@ -158,6 +163,7 @@ export default function NimiqContributions({
               )}
             </form>
           ) : (
+            !legacyOnly &&
             !closed &&
             summary.enabled && (
               <form
