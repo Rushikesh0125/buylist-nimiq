@@ -570,13 +570,6 @@
   color: #aeadbb;
   font-size: 12px;
 }
-.plan-detail .detail-automation {
-  grid-column: 1/-1;
-  grid-row: 5;
-  max-width: 800px;
-  min-width: 0;
-  width: 100%;
-}
 @media (max-width: 1000px) {
   .planner-heading {
     align-items: flex-start;
@@ -674,10 +667,6 @@
   }
   .planner-selection {
     padding-right: 30px;
-  }
-  .plan-detail .detail-automation {
-    grid-column: auto;
-    grid-row: auto;
   }
   .planner-agenda-row > strong {
     font-size: 14px;

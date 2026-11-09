@@ -34,14 +34,8 @@ before(async () => {
       compatibilityDate: "2026-10-30",
       compatibilityFlags: ["nodejs_compat"],
       d1Databases: ["DB"],
-      durableObjects: {
-        GOAL_COORDINATOR: { className: "GoalCoordinator", useSQLite: true },
-      },
-      queueProducers: { RECONCILE: "test-reconcile" },
       bindings: {
         APP_ORIGIN: origin,
-        PAYPAL_MODE: "sandbox",
-        PAYMENTS_ENABLED: "false",
         ENVIRONMENT: "local",
       },
     }),
@@ -310,7 +304,7 @@ test("flexible groups reject mandatory schedules but support forecasts", async (
   assert.equal(result.count, 5);
   assert.equal(result.scenario, "what-if");
 });
-test("disabled payments cannot create an order or ledger entry", async () => {
+test("retired payment routes cannot create an order or ledger entry", async () => {
   const result = await request("/api/payments/orders", "POST", {
     goalId: crypto.randomUUID(),
     amountCents: 1000,
@@ -321,46 +315,6 @@ test("disabled payments cannot create an order or ledger entry", async () => {
     .prepare("SELECT COUNT(*) AS count FROM ledger")
     .first<{ count: number }>();
   assert.equal(count?.count, 0);
-});
-test("simultaneous reservations cannot overfund and retry keys cannot change amount", async () => {
-  const { id } = (await (
-    await request("/api/goals", "POST", {
-      name: "Reservation test",
-      targetCents: 10000,
-      mode: "solo",
-      timezone: "UTC",
-    })
-  ).json()) as { id: string };
-  const ns = await mf.getDurableObjectNamespace("GOAL_COORDINATOR");
-  const stub = ns.get(ns.idFromName(id)) as unknown as {
-    reserve: (
-      goalId: string,
-      userId: string,
-      amount: number,
-      key: string,
-    ) => Promise<{ id: string }>;
-  };
-  const key = crypto.randomUUID();
-  const attempts = await Promise.allSettled([
-    stub.reserve(id, "alice", 6000, key),
-    stub.reserve(id, "alice", 6000, crypto.randomUUID()),
-  ]);
-  assert.equal(attempts.filter((a) => a.status === "fulfilled").length, 1);
-  const held = await db
-    .prepare(
-      "SELECT SUM(amount_cents) AS total FROM payment_attempts WHERE goal_id=? AND reserved=1",
-    )
-    .bind(id)
-    .first<{ total: number }>();
-  assert.equal(held?.total, 6000);
-  const winner = attempts.find((a) => a.status === "fulfilled");
-  if (attempts[0].status === "fulfilled") {
-    assert.equal(
-      (await stub.reserve(id, "alice", 6000, key)).id,
-      attempts[0].value.id,
-    );
-    await assert.rejects(() => stub.reserve(id, "alice", 5000, key));
-  }
 });
 test("logout requires CSRF and invalidates only the current session", async () => {
   assert.equal(
@@ -424,16 +378,9 @@ test("only owners can update unlocked targets and pending reservations block upd
   detail = (await (await request("/api/goals/" + id)).json()) as {
     goal: { version: number };
   };
-  const ns = await mf.getDurableObjectNamespace("GOAL_COORDINATOR");
-  const stub = ns.get(ns.idFromName(id)) as unknown as {
-    reserve: (
-      goal: string,
-      user: string,
-      amount: number,
-      key: string,
-    ) => Promise<unknown>;
-  };
-  await stub.reserve(id, "alice", 2000, crypto.randomUUID());
+  await db.prepare(
+    "INSERT INTO payment_attempts(id,goal_id,user_id,request_key,amount_cents,currency,status,reserved,created_at,updated_at) VALUES(?,?,'alice',?,2000,'USD','capture_pending',1,0,0)",
+  ).bind(crypto.randomUUID(), id, crypto.randomUUID()).run();
   assert.equal(
     (
       await request("/api/goals/" + id, "PATCH", {

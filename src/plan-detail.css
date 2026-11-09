@@ -326,49 +326,11 @@
   margin: 0 0 14px;
   font-size: 12px;
 }
-.authenticated-workspace .detail-contribute .payment-amount {
-  font-family: "Bricolage Grotesque", sans-serif;
-  font-weight: 800;
-  font-size: 36px;
-  letter-spacing: -1px;
-  padding: 16px;
-  width: 100%;
-  background: #111113;
-  border: 1px solid #45454f;
-  margin-top: 10px;
-}
-.contribution-presets {
-  display: flex;
-  gap: 8px;
-  margin: 0 0 24px;
-}
-.contribution-presets > button {
-  flex: 1;
-  min-height: 36px;
-  padding: 6px 10px;
-  background: #27272d;
-  border: 1px solid #44444e;
-  border-radius: 999px;
-  color: #cbccd5;
-  font-size: 12px;
-}
-.contribution-presets > button[aria-pressed="true"] {
-  background: var(--plan-accent);
-  border-color: var(--plan-accent);
-  color: #111113;
-  font-weight: 700;
-}
 .detail-contribute > p {
   color: #a5a5b2;
   font-size: 12px;
   line-height: 1.7;
   margin: 18px 0 0;
-}
-.detail-contribute .checkout-panel {
-  padding: 20px 0 0;
-}
-.detail-contribute .checkout-panel h3 {
-  font-size: 18px;
 }
 .detail-contribute .secondary {
   margin-top: 20px;
@@ -511,9 +473,6 @@
   .detail-contribute h2 {
     font-size: 24px;
     margin-bottom: 18px;
-  }
-  .authenticated-workspace .detail-contribute .payment-amount {
-    font-size: 30px;
   }
   .detail-contribute .primary {
     min-height: 50px;
@@ -668,100 +627,3 @@
   }
 }
 /* Optional payment consent stays separate from saved scheduling. */
-.plan-detail .automatic-card {
-  margin: 28px 0;
-  padding: 24px;
-  border: 1px solid #414145;
-  border-radius: 18px;
-  background: #19191c;
-}
-.plan-detail .automatic-heading {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: flex-start;
-}
-.plan-detail .automatic-heading h3 {
-  margin: 7px 0 18px;
-}
-.plan-detail .automatic-state {
-  color: #c8f25c;
-  border: 1px solid #515d32;
-  border-radius: 20px;
-  padding: 5px 10px;
-  font-size: 12px;
-  text-transform: capitalize;
-}
-.plan-detail .automatic-card > strong {
-  font-size: 25px;
-}
-.plan-detail .automatic-card small {
-  font-size: 14px;
-  font-weight: 400;
-}
-.plan-detail .automatic-note {
-  color: #a5a5af;
-  font-size: 12px;
-  line-height: 1.6;
-}
-.plan-detail .automatic-actions {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-.plan-detail .automatic-actions .secondary {
-  width: auto;
-}
-.plan-detail .automatic-actions .text-action {
-  width: auto;
-  padding: 10px 0;
-}
-.plan-detail .automatic-fields {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-.plan-detail .automatic-consent {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 12px;
-  margin: 20px 0;
-  line-height: 1.6;
-}
-.plan-detail .automatic-consent input {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  accent-color: #c8f25c;
-  margin-top: 3px;
-}
-.plan-detail .payment-history-item {
-  padding: 0 0 16px;
-  border-bottom: 1px solid #343438;
-}
-.plan-detail .payment-history-item .person-row {
-  border-bottom: 0;
-}
-.plan-detail .refund-review {
-  padding: 16px;
-  background: #202023;
-  border-radius: 12px;
-  max-width: 440px;
-}
-.plan-detail .refund-review .text-action {
-  margin: 16px 0 0;
-}
-@media (max-width: 500px) {
-  .plan-detail .automatic-card {
-    padding: 18px;
-  }
-  .plan-detail .automatic-fields {
-    grid-template-columns: 1fr;
-  }
-  .plan-detail .automatic-heading {
-    flex-wrap: wrap;
-    gap: 0;
-  }
-}

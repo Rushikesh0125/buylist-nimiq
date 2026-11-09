@@ -8,33 +8,6 @@ import {
   validDate,
 } from "../shared/domain.ts";
 import { normalizeProduct } from "../worker/products.ts";
-import {
-  automaticSetupBody,
-  parseCents,
-  verifiedCapture,
-} from "../worker/paypal.ts";
-test("Vault setup follows the provider contract, including no initial charge and supported plan characters", () => {
-  const b = automaticSetupBody({
-    userId: "test-user",
-    goalName: "Gift 🎉 / телевизор",
-    amountCents: 2500,
-    frequency: "fortnightly",
-    startDate: "2027-01-01",
-    origin: "https://example.test",
-  });
-  assert.match(
-    b.payment_source.paypal.billing_plan.name,
-    /^[A-Za-z0-9() +',.:-]+$/,
-  );
-  assert.equal(
-    b.payment_source.paypal.billing_plan.one_time_charges.total_amount.value,
-    "0.00",
-  );
-  assert.deepEqual(
-    b.payment_source.paypal.billing_plan.billing_cycles[0].frequency,
-    { interval_unit: "WEEK", interval_count: 2 },
-  );
-});
 import { dateInTimezone, nextFutureCycle } from "../shared/automatic.ts";
 import { canMove, plannerRange, shiftAnchor } from "../shared/planner.ts";
 test("planner navigation stays on calendar dates across month and year boundaries", () => {
@@ -144,45 +117,4 @@ test("does not fabricate prices for unavailable products", () => {
   const p = normalizeProduct({ id: "x", title: "Sofa", offers: [] });
   assert.equal(p.available, false);
   assert.equal(p.priceCents, null);
-});
-test("PayPal decimal amounts parsed exactly", () => {
-  assert.equal(parseCents("0.01"), 1);
-  assert.equal(parseCents("249.99"), 24999);
-  assert.throws(() => parseCents("2.999"));
-});
-test("refuses payment capture with mismatched merchant or amount", () => {
-  const order = {
-    id: "ORDER",
-    status: "COMPLETED",
-    purchase_units: [
-      {
-        custom_id: "attempt",
-        payee: { merchant_id: "merchant" },
-        payments: {
-          captures: [
-            {
-              id: "CAPTURE",
-              status: "COMPLETED",
-              amount: { currency_code: "USD" as const, value: "10.00" },
-            },
-          ],
-        },
-      },
-    ],
-  };
-  assert.equal(
-    verifiedCapture(order, { id: "attempt", amount_cents: 1000 }, "merchant")
-      ?.id,
-    "CAPTURE",
-  );
-  assert.throws(() =>
-    verifiedCapture(order, { id: "attempt", amount_cents: 999 }, "merchant"),
-  );
-  assert.throws(() =>
-    verifiedCapture(
-      order,
-      { id: "attempt", amount_cents: 1000 },
-      "another-merchant",
-    ),
-  );
 });

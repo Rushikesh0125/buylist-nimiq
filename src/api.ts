@@ -3,8 +3,6 @@ export type Config = {
   nimiqEnabled: boolean;
   googleConfigured: boolean;
   channel3Configured: boolean;
-  paypalConfigured: boolean;
-  paymentsEnabled: boolean;
   bryntumEnabled: boolean;
 };
 export type Goal = {

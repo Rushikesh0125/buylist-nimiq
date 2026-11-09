@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   api,
   loadSession,
@@ -15,7 +15,6 @@ import {
 } from "./api";
 import ProductSearch from "./ProductSearch";
 import AccountMenu from "./AccountMenu";
-import RefundContribution from "./RefundContribution";
 import NimiqContributions from "./NimiqContributions";
 import NimiqSignIn from "./NimiqSignIn";
 import {
@@ -29,16 +28,6 @@ import {
 } from "@phosphor-icons/react";
 import ContributionPlanner from "./ContributionPlanner";
 import { canMove } from "../shared/planner";
-const Checkout = lazy(() => import("./Checkout"));
-const AutomaticContributions = lazy(() => import("./AutomaticContributions"));
-type PaymentActivity = {
-  id: string;
-  goal_id: string;
-  amount_cents: number;
-  status: string;
-  refundable_cents: number;
-  refund_pending_cents: number;
-};
 export default function Workspace() {
   const [user, setUser] = useState<User | null>(null),
     [config, setConfig] = useState<Config | null>(null),
@@ -49,8 +38,7 @@ export default function Workspace() {
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(true),
     [view, setView] = useState("plans"),
-    [detailTab, setDetailTab] = useState("schedule"),
-    [contributionAmount, setContributionAmount] = useState("25");
+    [detailTab, setDetailTab] = useState("schedule");
   const [editingSchedule, setEditingSchedule] = useState(false);
   const [personalPlan, setPersonalPlan] = useState<PersonalPlan | null>(null);
   const [product, setProduct] = useState<Product | null>(null),
@@ -67,16 +55,10 @@ export default function Workspace() {
       explanation?: string;
     } | null>(null),
     [invite, setInvite] = useState(""),
-    [checkout, setCheckout] = useState(false),
-    [paymentConfig, setPaymentConfig] = useState<{
-      clientId: string | null;
-      enabled: boolean;
-    } | null>(null),
     [editEvent, setEditEvent] = useState<{
       event: EventRow;
       date: string;
-    } | null>(null),
-    [paymentActivity, setPaymentActivity] = useState<PaymentActivity[]>([]);
+    } | null>(null);
   const run = async (fn: () => Promise<void>) => {
     setError("");
     setBusy(true);
@@ -89,19 +71,12 @@ export default function Workspace() {
     }
   };
   const refresh = async () => {
-    const [result, activity] = await Promise.all([
-      api<{ goals: Goal[] }>("/api/goals"),
-      api<{
-        payments: PaymentActivity[];
-      }>("/api/payments/activity"),
-    ]);
+    const result = await api<{ goals: Goal[] }>("/api/goals");
     setGoals(result.goals);
-    setPaymentActivity(activity.payments);
   };
   const open = async (id: string) => {
     if (detail?.goal.id !== id) {
       setDetailTab("schedule");
-      setContributionAmount("25");
       setInvite("");
     }
     const [d, s] = await Promise.all([
@@ -122,7 +97,6 @@ export default function Workspace() {
     setEditingSchedule(false);
     setView("detail");
     setPreview(null);
-    setCheckout(false);
     setEditEvent(null);
     const saved = personal || s.commitment;
     if (saved) {
@@ -139,7 +113,6 @@ export default function Workspace() {
       setUser(u);
       if (u) {
         await refresh();
-        setPaymentConfig(await api("/api/payments/config"));
       }
     }).finally(() => setLoading(false));
   }, []);
@@ -149,12 +122,10 @@ export default function Workspace() {
     const timer = setInterval(() => {
       void Promise.all([
         api<Detail>("/api/goals/" + gid),
-        api<{ payments: PaymentActivity[] }>("/api/payments/activity"),
         api<Schedule>("/api/goals/" + gid + "/schedule"),
       ])
-        .then(([d, a, s]) => {
+        .then(([d, s]) => {
           setDetail((current) => (current?.goal.id === gid ? d : current));
-          setPaymentActivity(a.payments);
           // Keep the editor's accepted version snapshot while refreshing shared events.
           setSchedule((current) =>
             !current
@@ -193,8 +164,10 @@ export default function Workspace() {
             <a className="site-cta" href="/api/auth/google/start">
               Continue with Google
             </a>
-          ) : !config?.nimiqEnabled && (
-            <p>Sign-in is temporarily unavailable. Please try again later.</p>
+          ) : (
+            !config?.nimiqEnabled && (
+              <p>Sign-in is temporarily unavailable. Please try again later.</p>
+            )
           )}
         </section>
       );
@@ -365,84 +338,9 @@ export default function Workspace() {
               </section>
               <aside
                 className="detail-contribute"
-                aria-label="Make a contribution"
+                aria-label="NIM savings and retailer offer"
               >
-                <h2>{remaining > 0 ? "Contribute" : "Target reached"}</h2>
-                {remaining > 0 && (
-                  <label>
-                    Amount in USD
-                    <input
-                      className="payment-amount"
-                      inputMode="decimal"
-                      value={contributionAmount}
-                      onChange={(e) => {
-                        setContributionAmount(e.target.value);
-                        setCheckout(false);
-                      }}
-                    />
-                  </label>
-                )}
-                {remaining > 0 && (
-                  <div
-                    className="contribution-presets"
-                    aria-label="Suggested contribution amounts"
-                  >
-                    {[25, 50, 100]
-                      .filter((value) => value * 100 <= remaining)
-                      .map((value) => (
-                        <button
-                          type="button"
-                          key={value}
-                          aria-pressed={
-                            inputCents(contributionAmount) === value * 100
-                          }
-                          onClick={() => {
-                            setContributionAmount(String(value));
-                            setCheckout(false);
-                          }}
-                        >
-                          {usd(value * 100)}
-                        </button>
-                      ))}
-                  </div>
-                )}
-                {remaining > 0 && (
-                  <button
-                    className="primary"
-                    disabled={
-                      busy ||
-                      !inputCents(contributionAmount) ||
-                      inputCents(contributionAmount)! > remaining ||
-                      !paymentConfig?.enabled ||
-                      !paymentConfig?.clientId
-                    }
-                    onClick={() => setCheckout(true)}
-                  >
-                    Continue to PayPal
-                  </button>
-                )}
-                {!paymentConfig?.enabled && (
-                  <p>Contributions are temporarily paused.</p>
-                )}
-                {checkout &&
-                  paymentConfig?.clientId &&
-                  inputCents(contributionAmount) && (
-                    <Suspense fallback={<p>Loading PayPal…</p>}>
-                      <Checkout
-                        key={g.id + ":" + contributionAmount}
-                        goalId={g.id}
-                        amountCents={inputCents(contributionAmount)!}
-                        clientId={paymentConfig.clientId}
-                        onComplete={() =>
-                          void run(async () => {
-                            await open(g.id);
-                            await refresh();
-                          })
-                        }
-                      />
-                    </Suspense>
-                  )}
-                {!remaining && p && (
+                {p && (
                   <button
                     className="secondary"
                     disabled={busy}
@@ -730,26 +628,6 @@ export default function Workspace() {
                       }}
                     />
                   )}
-                  <section
-                    className="detail-automation"
-                    aria-label="Automatic payment preferences"
-                  >
-                    <Suspense fallback={<p>Loading payment preferences…</p>}>
-                      <AutomaticContributions
-                        key={g.id}
-                        goalId={g.id}
-                        timezone={g.timezone}
-                        clientId={paymentConfig?.clientId || null}
-                        enabled={
-                          !!paymentConfig?.enabled &&
-                          !g.purchased &&
-                          remaining > 0
-                        }
-                        saved={savedPlan}
-                        onChange={() => void run(refresh)}
-                      />
-                    </Suspense>
-                  </section>
                 </>
               )}
               {detailTab === "people" && g.mode !== "solo" && (
@@ -804,16 +682,21 @@ export default function Workspace() {
                           </button>
                         </label>
                       )}
-                      {invite && config?.nimiqEnabled && g.mode === "flexible" && (
-                        <label>
-                          Nimiq Pay invitation
-                          <input
-                            readOnly
-                            value={"nimiqpay://miniapp?url=" + encodeURIComponent(invite)}
-                            onFocus={(event) => event.currentTarget.select()}
-                          />
-                        </label>
-                      )}
+                      {invite &&
+                        config?.nimiqEnabled &&
+                        g.mode === "flexible" && (
+                          <label>
+                            Nimiq Pay invitation
+                            <input
+                              readOnly
+                              value={
+                                "nimiqpay://miniapp?url=" +
+                                encodeURIComponent(invite)
+                              }
+                              onFocus={(event) => event.currentTarget.select()}
+                            />
+                          </label>
+                        )}
                     </>
                   )}
                 </section>
@@ -823,38 +706,6 @@ export default function Workspace() {
                   className="detail-panel detail-activity"
                   aria-label="Contribution activity"
                 >
-                  <h2>Payment history</h2>
-                  {paymentActivity
-                    .filter((a) => a.goal_id === g.id)
-                    .map((a) => (
-                      <div className="payment-history-item" key={a.id}>
-                        <div className="person-row">
-                          <span>{a.status.replaceAll("_", " ")}</span>
-                          <strong>{usd(a.amount_cents)}</strong>
-                        </div>
-                        {a.refund_pending_cents > 0 && (
-                          <p role="status">
-                            {usd(a.refund_pending_cents)} refund awaiting
-                            confirmation
-                          </p>
-                        )}
-                        {a.refundable_cents > 0 && !g.purchased && (
-                          <RefundContribution
-                            paymentId={a.id}
-                            availableCents={a.refundable_cents}
-                            onChange={() =>
-                              void run(async () => {
-                                await open(g.id);
-                                await refresh();
-                              })
-                            }
-                          />
-                        )}
-                      </div>
-                    ))}
-                  {!paymentActivity.some((a) => a.goal_id === g.id) && (
-                    <p>No payment attempts yet.</p>
-                  )}
                   <h2>Received activity</h2>
                   {detail.ledger.length ? (
                     detail.ledger.map((l, i) => (
@@ -934,8 +785,8 @@ export default function Workspace() {
             </div>
           )}
           <p>
-            PayPal sandbox contributions do not pay this retailer or transfer to
-            checkout.
+            NIM contributions go to the goal organizer. Purchases are completed
+            with the retailer.
           </p>
           {product.merchantUrl && (
             <a
@@ -1040,9 +891,6 @@ export default function Workspace() {
               setDetail(null);
               setSchedule(null);
               setPersonalPlan(null);
-              setPaymentActivity([]);
-              setPaymentConfig(null);
-              setCheckout(false);
               setView("plans");
             })
           }

@@ -451,7 +451,7 @@ export default function ContributionPlanner({
       <div className="planner-footer">
         <p>
           <LockSimple size={16} />
-          Planning only. Automatic PayPal dates stay unchanged.
+          Planning only. Editing a date does not send funds.
         </p>
         <div className="planner-legend">
           <span className="legend-received">

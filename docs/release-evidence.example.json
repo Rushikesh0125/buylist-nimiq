@@ -1,8 +1,8 @@
 {
-  "googleLogin": {"passed": false, "evidence": ""},
+  "nimiqWalletLogin": {"passed": false, "evidence": ""},
   "channel3Search": {"passed": false, "evidence": ""},
-  "paypalSandboxCapture": {"passed": false, "evidence": ""},
-  "paypalWebhook": {"passed": false, "evidence": ""},
+  "nimiqTestnetTransfer": {"passed": false, "evidence": ""},
+  "nimiqMainnetTransfer": {"passed": false, "evidence": ""},
   "bryntumLicenseCoversJudging": {"passed": false, "evidence": ""},
   "bryntumTimeline": {"passed": false, "evidence": ""},
   "crossAccountGoal": {"passed": false, "evidence": ""},

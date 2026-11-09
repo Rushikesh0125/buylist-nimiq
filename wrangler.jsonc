@@ -3,155 +3,87 @@
   "name": "buylist-nimiq-local",
   "main": "worker/index.ts",
   "compatibility_date": "2026-10-30",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "assets": {
     "directory": "dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"],
+    "run_worker_first": [
+      "/api/*"
+    ]
   },
   "observability": {
-    "enabled": true,
+    "enabled": true
   },
   "vars": {
     "ENVIRONMENT": "local",
-    "PAYMENTS_ENABLED": "false",
     "APP_ORIGIN": "http://localhost:8787",
     "AI_MODEL": "@cf/meta/llama-3.1-8b-instruct",
-    "PAYPAL_MODE": "sandbox",
-    "BRYNTUM_LICENSE_CONFIRMED": "false",
+    "BRYNTUM_LICENSE_CONFIRMED": "false"
   },
-  "durable_objects": {
-    "bindings": [
-      {
-        "name": "GOAL_COORDINATOR",
-        "class_name": "GoalCoordinator",
-      },
-    ],
-  },
-  "migrations": [
-    {
-      "tag": "v1",
-      "new_sqlite_classes": ["GoalCoordinator"],
-    },
-  ],
   "ai": {
-    "binding": "AI",
+    "binding": "AI"
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "buylist-nimiq-staging",
       "database_id": "00000000-0000-4000-8000-000000000001",
-      "migrations_dir": "migrations",
-    },
+      "migrations_dir": "migrations"
+    }
   ],
-  "queues": {
-    "producers": [
-      {
-        "binding": "RECONCILE",
-        "queue": "buylist-nimiq-staging-reconcile",
-      },
-    ],
-  },
   "env": {
     "staging": {
       "name": "buylist-nimiq-staging",
       "vars": {
         "ENVIRONMENT": "staging",
-        "PAYMENTS_ENABLED": "false",
         "APP_ORIGIN": "https://buylist-nimiq-staging.example.invalid",
         "AI_MODEL": "@cf/meta/llama-3.1-8b-instruct",
-        "PAYPAL_MODE": "sandbox",
-        "BRYNTUM_LICENSE_CONFIRMED": "false",
+        "BRYNTUM_LICENSE_CONFIRMED": "false"
       },
       "d1_databases": [
         {
           "binding": "DB",
           "database_name": "buylist-nimiq-staging",
           "database_id": "00000000-0000-4000-8000-000000000001",
-          "migrations_dir": "migrations",
-        },
+          "migrations_dir": "migrations"
+        }
       ],
-      "durable_objects": {
-        "bindings": [
-          {
-            "name": "GOAL_COORDINATOR",
-            "class_name": "GoalCoordinator",
-          },
-        ],
-      },
       "ai": {
-        "binding": "AI",
-      },
-      "queues": {
-        "producers": [
-          {
-            "binding": "RECONCILE",
-            "queue": "buylist-nimiq-staging-reconcile",
-          },
-        ],
-        "consumers": [
-          {
-            "queue": "buylist-nimiq-staging-reconcile",
-            "max_batch_size": 5,
-            "max_retries": 5,
-            "dead_letter_queue": "buylist-nimiq-staging-reconcile-dlq",
-          },
-        ],
+        "binding": "AI"
       },
       "triggers": {
-        "crons": ["*/5 * * * *"],
-      },
+        "crons": [
+          "*/5 * * * *"
+        ]
+      }
     },
     "production": {
       "name": "buylist-nimiq-production",
       "vars": {
         "ENVIRONMENT": "production",
-        "PAYMENTS_ENABLED": "false",
         "APP_ORIGIN": "https://buylist-nimiq-production.example.invalid",
         "AI_MODEL": "@cf/meta/llama-3.1-8b-instruct",
-        "PAYPAL_MODE": "sandbox",
-        "BRYNTUM_LICENSE_CONFIRMED": "false",
+        "BRYNTUM_LICENSE_CONFIRMED": "false"
       },
       "d1_databases": [
         {
           "binding": "DB",
           "database_name": "buylist-nimiq-production",
           "database_id": "00000000-0000-4000-8000-000000000002",
-          "migrations_dir": "migrations",
-        },
+          "migrations_dir": "migrations"
+        }
       ],
-      "durable_objects": {
-        "bindings": [
-          {
-            "name": "GOAL_COORDINATOR",
-            "class_name": "GoalCoordinator",
-          },
-        ],
-      },
       "ai": {
-        "binding": "AI",
-      },
-      "queues": {
-        "producers": [
-          {
-            "binding": "RECONCILE",
-            "queue": "buylist-nimiq-production-reconcile",
-          },
-        ],
-        "consumers": [
-          {
-            "queue": "buylist-nimiq-production-reconcile",
-            "max_batch_size": 5,
-            "max_retries": 5,
-            "dead_letter_queue": "buylist-nimiq-production-reconcile-dlq",
-          },
-        ],
+        "binding": "AI"
       },
       "triggers": {
-        "crons": ["*/5 * * * *"],
-      },
-    },
-  },
+        "crons": [
+          "*/5 * * * *"
+        ]
+      }
+    }
+  }
 }

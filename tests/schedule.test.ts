@@ -34,14 +34,8 @@ before(async () => {
       compatibilityDate: "2026-10-30",
       compatibilityFlags: ["nodejs_compat"],
       d1Databases: ["DB"],
-      durableObjects: {
-        GOAL_COORDINATOR: { className: "GoalCoordinator", useSQLite: true },
-      },
-      queueProducers: { RECONCILE: "test-reconcile" },
       bindings: {
         APP_ORIGIN: origin,
-        PAYPAL_MODE: "sandbox",
-        PAYMENTS_ENABLED: "false",
         ENVIRONMENT: "local",
       },
     }),

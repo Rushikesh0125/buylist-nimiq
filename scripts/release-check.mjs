@@ -1,9 +1,9 @@
 import { readFile } from "node:fs/promises";
 const required = [
-  "googleLogin",
+  "nimiqWalletLogin",
   "channel3Search",
-  "paypalSandboxCapture",
-  "paypalWebhook",
+  "nimiqTestnetTransfer",
+  "nimiqMainnetTransfer",
   "bryntumLicenseCoversJudging",
   "bryntumTimeline",
   "crossAccountGoal",
