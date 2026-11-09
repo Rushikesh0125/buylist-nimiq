@@ -239,11 +239,11 @@ export default function NimiqContributions({
           }}
         >
           <p>
-            Add a separate NIM target. The receiving address and target are
-            fixed once enabled.
+            Set a NIM target and receiving address before making your first
+            contribution. Both are fixed once enabled.
           </p>
           <label>
-            Organizer’s Nimiq address
+            Receiving Nimiq address
             <input
               value={recipient}
               onChange={(event) => setRecipient(event.target.value)}

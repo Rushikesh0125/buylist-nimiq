@@ -129,10 +129,10 @@ export async function nimiqRoutes(request: Request, env: Env, path: string) {
   );
   if (method === "PUT" && !attemptId) {
     insist(
-      !goal.purchased && goal.mode === "flexible",
+      !goal.purchased,
       409,
-      "NIMIQ_GOAL_TYPE",
-      "Choose an open flexible group goal.",
+      "GOAL_CLOSED",
+      "This goal is closed.",
     );
     const { recipient, targetLuna } = configSchema.parse(
       await jsonBody(request),

@@ -1,6 +1,6 @@
 # Buylist for Nimiq Pay
 
-Plan a group purchase and contribute NIM from Nimiq Pay. Start with a flexible group goal, then enable NIM savings in the goal detail. The organizer sets a separate NIM target and receiving address. Members can join by invitation and send a manual contribution. The receiving wallet belongs to the organizer, who controls the funds.
+Plan a purchase and contribute NIM from Nimiq Pay. Enable NIM savings in the detail page for any open goal. The organizer sets a separate NIM target and receiving address. Members can join by invitation and send a manual contribution. The receiving wallet belongs to the organizer, who controls the funds.
 
 ## How it works
 
@@ -15,7 +15,7 @@ Plan a group purchase and contribute NIM from Nimiq Pay. Start with a flexible g
 1. Run `npm ci`, then `npm run build`.
 2. Copy `.dev.vars.example` to `.dev.vars`. Set `NIMIQ_NETWORK=testnet` and `NIMIQ_RPC_URL` to the public NimiqWatch testnet RPC from the example or a trusted testnet history node.
 3. Run `npm run db:local` and `npm run worker:dev`. To use a phone, serve the Worker over HTTPS and set `APP_ORIGIN` to that exact origin so login cookies and CSRF checks work.
-4. Open the HTTPS URL through **Nimiq Pay → Mini Apps → Custom URL** with the app on testnet. Use **Continue with Nimiq Pay**, create a flexible goal, and enable NIM savings. Invite another test wallet and check canceled, pending, and confirmed transfers.
+4. Open the HTTPS URL through **Nimiq Pay → Mini Apps → Custom URL** with the app on testnet. Use **Continue with Nimiq Pay**, create a goal, and enable NIM savings. Invite another test wallet and check canceled, pending, and confirmed transfers.
 5. Run `npm run typecheck` and `npm test` for the local checks. The Worker tests use RPC fixtures and generated signing keys.
 
 ## Deployment

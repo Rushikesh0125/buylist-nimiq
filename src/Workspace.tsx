@@ -356,14 +356,12 @@ export default function Workspace() {
                     Check current merchant offer
                   </button>
                 )}
-                {g.mode === "flexible" && (
-                  <NimiqContributions
-                    key={g.id}
-                    goalId={g.id}
-                    owner={g.role === "owner"}
-                    closed={!!g.purchased}
-                  />
-                )}
+                <NimiqContributions
+                  key={g.id}
+                  goalId={g.id}
+                  owner={g.role === "owner"}
+                  closed={!!g.purchased}
+                />
               </aside>
               <nav className="detail-tabs" aria-label="Plan sections">
                 <button
@@ -675,21 +673,19 @@ export default function Workspace() {
                           </button>
                         </label>
                       )}
-                      {invite &&
-                        config?.nimiqEnabled &&
-                        g.mode === "flexible" && (
-                          <label>
-                            Nimiq Pay invitation
-                            <input
-                              readOnly
-                              value={
-                                "nimiqpay://miniapp?url=" +
-                                encodeURIComponent(invite)
-                              }
-                              onFocus={(event) => event.currentTarget.select()}
-                            />
-                          </label>
-                        )}
+                      {invite && config?.nimiqEnabled && (
+                        <label>
+                          Nimiq Pay invitation
+                          <input
+                            readOnly
+                            value={
+                              "nimiqpay://miniapp?url=" +
+                              encodeURIComponent(invite)
+                            }
+                            onFocus={(event) => event.currentTarget.select()}
+                          />
+                        </label>
+                      )}
                     </>
                   )}
                 </section>

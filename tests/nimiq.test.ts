@@ -234,3 +234,39 @@ test("NIM contribution survives reload, requires matching finalized transfer and
   ).json()) as { confirmed: number };
   assert.equal(summary.confirmed, 10_000);
 });
+
+test("owners can enable NIM savings for solo and fixed goals", async () => {
+  const cookie = "__Host-buylist=owner";
+  for (const mode of ["solo", "fixed"]) {
+    const created = await request(
+      "/api/goals",
+      "POST",
+      {
+        name: mode + " NIM goal",
+        targetCents: 10000,
+        mode,
+        timezone: "UTC",
+      },
+      cookie,
+    );
+    assert.equal(created.status, 201);
+    const { id } = (await created.json()) as { id: string };
+    const path = "/api/goals/" + id + "/nimiq";
+    assert.equal(
+      (await request(path, "PUT", { recipient, targetLuna: 500_000 }, cookie))
+        .status,
+      201,
+    );
+    assert.equal(
+      (
+        await request(
+          path,
+          "POST",
+          { amountLuna: 10_000, accounts: [sender] },
+          cookie,
+        )
+      ).status,
+      201,
+    );
+  }
+});
