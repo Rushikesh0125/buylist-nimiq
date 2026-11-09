@@ -1,0 +1,429 @@
+import { useRef, useState } from "react";
+import { getHostNetwork, init } from "@nimiq/mini-app-sdk";
+import { dateInTimezone } from "../shared/automatic";
+import {
+  purchaseUnstakePlan,
+  unstakeBufferDays,
+} from "../shared/nimiq-staking";
+import { api } from "./api";
+
+type Staking = {
+  staker: {
+    balance: number;
+    delegation: string | null;
+    inactiveBalance: number;
+    retiredBalance: number;
+  } | null;
+  validators: string[];
+  minimumStake: number;
+  height: number;
+  releaseBlock: number | null;
+};
+type Savings = {
+  address: string;
+  target_luna: number;
+  earmarked_luna: number;
+  purchase_date: string | null;
+  final_contribution_luna: number;
+  balance: number | null;
+  totalEarmarked: number;
+};
+type Action = "stake" | "deactivate" | "retire" | "withdraw";
+const nim = (luna: number) =>
+  (luna / 100_000).toLocaleString(undefined, { maximumFractionDigits: 5 });
+const normalize = (address: string) => address.replace(/\s/g, "").toUpperCase();
+const validHash = /^[a-f0-9]{64}$/i;
+
+function amountLuna(input: string) {
+  const parts = /^(\d{1,8})(?:\.(\d{1,5}))?$/.exec(input.trim());
+  if (!parts)
+    throw new Error("Enter a NIM amount with up to five decimal places.");
+  const value =
+    Number(parts[1]) * 100_000 + Number((parts[2] ?? "").padEnd(5, "0"));
+  if (value <= 0) throw new Error("Enter a positive NIM amount.");
+  return value;
+}
+
+export default function NimiqStaking({
+  path,
+  network,
+  savings,
+  timezone,
+  refreshSavings,
+}: {
+  path: string;
+  network: "mainnet" | "testnet";
+  savings: Savings;
+  timezone: string;
+  refreshSavings: () => Promise<unknown>;
+}) {
+  const [status, setStatus] = useState<Staking>();
+  const [amount, setAmount] = useState("");
+  const [validator, setValidator] = useState("");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [pending, setPending] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const running = useRef(false);
+  const key = "buylist.stake." + network + "." + normalize(savings.address);
+
+  const load = () => api<Staking>(path + "?staking=1");
+  async function refresh() {
+    const hash = localStorage.getItem(key) ?? "";
+    setPending(hash);
+    if (hash) {
+      const result = await api<{ status: "pending" | "confirmed" | "failed" }>(
+        path + "?stakingTx=" + encodeURIComponent(hash),
+      );
+      if (result.status !== "pending") {
+        localStorage.removeItem(key);
+        setPending("");
+      }
+      setMessage(
+        result.status === "confirmed"
+          ? "Staking transaction confirmed."
+          : result.status === "failed"
+            ? "The staking transaction failed on-chain."
+            : "Waiting for on-chain finality.",
+      );
+      if (result.status === "pending") return;
+    }
+    const [next] = await Promise.all([load(), refreshSavings()]);
+    setStatus(next);
+  }
+
+  async function run(work: () => Promise<void>) {
+    if (running.current) return;
+    running.current = true;
+    setBusy(true);
+    setMessage("");
+    try {
+      await work();
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Staking request failed.",
+      );
+    } finally {
+      running.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function submit(action: Action) {
+    const execute = async () => {
+      if (network !== "testnet")
+        throw new Error(
+          "Wallet staking actions are currently enabled on Nimiq Testnet.",
+        );
+      if (localStorage.getItem(key))
+        throw new Error(
+          "Check the pending staking transaction before sending another.",
+        );
+      const [latest, current] = await Promise.all([
+        load(),
+        api<{ savings: Savings | null }>(path),
+      ]);
+      if (
+        !current.savings ||
+        normalize(current.savings.address) !== normalize(savings.address)
+      )
+        throw new Error("The saved wallet changed. Reopen the staking panel.");
+      const wallet = await init({ timeout: 3000 });
+      if (getHostNetwork() !== network)
+        throw new Error(
+          "Switch Nimiq Pay to " + network + " and reopen Buylist.",
+        );
+      const accounts = await wallet.listAccounts();
+      if (
+        accounts.length !== 1 ||
+        normalize(accounts[0]) !== normalize(savings.address)
+      )
+        throw new Error(
+          "Open this plan with the same single Nimiq Pay account you used to set it up.",
+        );
+
+      const staker = latest.staker;
+      let request: () => Promise<string>;
+      if (action === "stake") {
+        const value = amountLuna(amount);
+        const balance = current.savings.balance;
+        if (
+          balance === null ||
+          value > balance - current.savings.totalEarmarked
+        )
+          throw new Error(
+            "Stake only NIM that is available outside your liquid earmarks.",
+          );
+        if (staker) {
+          if (
+            staker.balance + staker.inactiveBalance + value <
+            latest.minimumStake
+          )
+            throw new Error(
+              "Keep at least " +
+                nim(latest.minimumStake) +
+                " NIM in non-retired stake.",
+            );
+          request = () => wallet.sendStakeTransaction({ value });
+        } else {
+          if (value < latest.minimumStake)
+            throw new Error(
+              "First stake must be at least " +
+                nim(latest.minimumStake) +
+                " NIM.",
+            );
+          if (!latest.validators.includes(validator))
+            throw new Error("Choose an active validator.");
+          request = () =>
+            wallet.sendNewStakerTransaction({ value, delegation: validator });
+        }
+      } else {
+        if (!staker) throw new Error("This wallet has no staking position.");
+        if (action === "deactivate") {
+          const value = amountLuna(withdrawAmount);
+          const next = staker.balance - value;
+          if (
+            staker.inactiveBalance ||
+            next < 0 ||
+            (next > 0 && next < latest.minimumStake)
+          )
+            throw new Error(
+              "Choose a valid amount that leaves the minimum active stake, or deactivate the full balance.",
+            );
+          request = () =>
+            wallet.sendSetActiveStakeTransaction({ newActiveBalance: next });
+        } else if (action === "retire") {
+          if (
+            !staker.inactiveBalance ||
+            latest.releaseBlock === null ||
+            latest.height < latest.releaseBlock
+          )
+            throw new Error("Inactive NIM has not been released yet.");
+          request = () =>
+            wallet.sendRetireStakeTransaction({
+              retireStake: staker.inactiveBalance,
+            });
+        } else {
+          if (!staker.retiredBalance)
+            throw new Error("No retired NIM is ready to withdraw.");
+          request = () =>
+            wallet.sendRemoveStakeTransaction({ value: staker.retiredBalance });
+        }
+      }
+      setMessage("Approve the transaction in Nimiq Pay.");
+      const hash = await request();
+      if (!validHash.test(hash))
+        throw new Error(
+          "Check Nimiq Pay activity before retrying. No transaction hash was returned.",
+        );
+      setPending(hash);
+      localStorage.setItem(key, hash);
+      setMessage(
+        "Transaction submitted. Check confirmation before sending another.",
+      );
+    };
+    await run(execute);
+  }
+
+  const staker = status?.staker;
+  const liquid =
+    savings.balance === null
+      ? null
+      : Math.max(
+          0,
+          Math.min(
+            savings.earmarked_luna,
+            savings.balance - (savings.totalEarmarked - savings.earmarked_luna),
+          ),
+        );
+  const plan =
+    status && staker && liquid !== null && savings.purchase_date
+      ? purchaseUnstakePlan({
+          purchaseDate: savings.purchase_date,
+          target: savings.target_luna,
+          liquid,
+          finalContribution: savings.final_contribution_luna,
+          active: staker.balance,
+          inactive: staker.inactiveBalance,
+          retired: staker.retiredBalance,
+          minimum: status.minimumStake,
+        })
+      : null;
+
+  return (
+    <section className="nimiq-contributions" aria-label="Native NIM staking">
+      <h4>Stake NIM</h4>
+      <p>
+        Stake through Nimiq Pay. Your wallet controls the position. Reward
+        payouts depend on the pool and are separate from this goal’s spendable
+        balance.
+      </p>
+      {!status ? (
+        <>
+          {pending && (
+            <p className="nimiq-recipient">Submitted transaction: {pending}</p>
+          )}
+          <button
+            type="button"
+            className="secondary"
+            disabled={busy}
+            onClick={() => void run(refresh)}
+          >
+            {pending ? "Check staking confirmation" : "Open staking"}
+          </button>
+        </>
+      ) : (
+        <>
+          {staker && (
+            <p>
+              Active: {nim(staker.balance)} NIM · Inactive:{" "}
+              {nim(staker.inactiveBalance)} NIM · Retired:{" "}
+              {nim(staker.retiredBalance)} NIM
+            </p>
+          )}
+          {staker?.delegation && (
+            <p className="nimiq-recipient">Validator: {staker.delegation}</p>
+          )}
+          {plan && (plan.amount > 0 || plan.remainingGap > 0) && (
+            <p>
+              {plan.date <= dateInTimezone(timezone)
+                ? "Unstake reminder: "
+                : "Suggested unstake date: "}
+              {plan.date}.{" "}
+              {plan.amount > 0 &&
+                "Consider deactivating " + nim(plan.amount) + " NIM. "}
+              {plan.remainingGap > 0 &&
+                nim(plan.remainingGap) + " NIM would still be needed. "}
+              The estimate allows {unstakeBufferDays} days; release timing can
+              vary.
+            </p>
+          )}
+          {staker &&
+            staker.inactiveBalance > 0 &&
+            status.releaseBlock !== null &&
+            status.height < status.releaseBlock && (
+              <p>
+                Inactive NIM can be retired at block{" "}
+                {status.releaseBlock.toLocaleString()} or later. Current block:{" "}
+                {status.height.toLocaleString()}.
+              </p>
+            )}
+          {network !== "testnet" ? (
+            <p>Staking actions are available on Nimiq Testnet for now.</p>
+          ) : pending ? (
+            <p className="nimiq-recipient">Submitted transaction: {pending}</p>
+          ) : (
+            <>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void submit("stake");
+                }}
+              >
+                {!staker && (
+                  <label>
+                    Active validator
+                    <select
+                      value={validator}
+                      onChange={(event) => setValidator(event.target.value)}
+                      required
+                      disabled={busy}
+                    >
+                      <option value="">Select a validator</option>
+                      {status.validators.map((address) => (
+                        <option key={address} value={address}>
+                          {address}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <label>
+                  Amount to stake (NIM)
+                  <input
+                    value={amount}
+                    onChange={(event) => setAmount(event.target.value)}
+                    inputMode="decimal"
+                    required
+                    disabled={busy}
+                  />
+                </label>
+                <button className="site-cta" type="submit" disabled={busy}>
+                  Approve stake in Nimiq Pay
+                </button>
+              </form>
+              {staker && staker.balance > 0 && !staker.inactiveBalance && (
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void submit("deactivate");
+                  }}
+                >
+                  <label>
+                    NIM to deactivate
+                    <input
+                      value={withdrawAmount}
+                      onChange={(event) =>
+                        setWithdrawAmount(event.target.value)
+                      }
+                      inputMode="decimal"
+                      required
+                      disabled={busy}
+                    />
+                  </label>
+                  {plan && plan.amount > 0 && (
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busy}
+                      onClick={() =>
+                        setWithdrawAmount(String(plan.amount / 100_000))
+                      }
+                    >
+                      Use suggested amount
+                    </button>
+                  )}
+                  <button type="submit" className="site-cta" disabled={busy}>
+                    Start unstaking
+                  </button>
+                </form>
+              )}
+              {staker &&
+                staker.inactiveBalance > 0 &&
+                status.releaseBlock !== null &&
+                status.height >= status.releaseBlock && (
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={busy}
+                    onClick={() => void submit("retire")}
+                  >
+                    Retire inactive NIM
+                  </button>
+                )}
+              {staker && staker.retiredBalance > 0 && (
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={busy}
+                  onClick={() => void submit("withdraw")}
+                >
+                  Withdraw retired NIM
+                </button>
+              )}
+            </>
+          )}
+          <button
+            type="button"
+            className="secondary"
+            disabled={busy}
+            onClick={() => void run(refresh)}
+          >
+            {pending ? "Check staking confirmation" : "Refresh staking status"}
+          </button>
+        </>
+      )}
+      {message && <p role="status">{message}</p>}
+    </section>
+  );
+}

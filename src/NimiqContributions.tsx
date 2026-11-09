@@ -2,12 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { getHostNetwork, init } from "@nimiq/mini-app-sdk";
 import { dateInTimezone } from "../shared/automatic";
 import { api } from "./api";
+import NimiqStaking from "./NimiqStaking";
 
 type Savings = {
   address: string;
   target_luna: number;
   earmarked_luna: number;
   review_date: string | null;
+  purchase_date: string | null;
+  final_contribution_luna: number;
   balance: number | null;
   totalEarmarked: number;
 };
@@ -46,6 +49,8 @@ export default function NimiqContributions({
   const [target, setTarget] = useState("");
   const [earmarked, setEarmarked] = useState("0");
   const [reviewDate, setReviewDate] = useState("");
+  const [purchaseDate, setPurchaseDate] = useState("");
+  const [finalContribution, setFinalContribution] = useState("0");
   const [hash, setHash] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -62,6 +67,10 @@ export default function NimiqContributions({
           setTarget(String(value.savings.target_luna / 100_000));
           setEarmarked(String(value.savings.earmarked_luna / 100_000));
           setReviewDate(value.savings.review_date ?? "");
+          setPurchaseDate(value.savings.purchase_date ?? "");
+          setFinalContribution(
+            String(value.savings.final_contribution_luna / 100_000),
+          );
         }
       })
       .catch((error: Error) => {
@@ -137,6 +146,13 @@ export default function NimiqContributions({
               goals. Add NIM to your wallet or reduce an earmark.
             </p>
           )}
+          {!underfunded &&
+            savings.balance !== null &&
+            savings.earmarked_luna >= savings.target_luna && (
+              <p>
+                Your NIM target is covered by spendable funds in your wallet.
+              </p>
+            )}
           {due && (
             <p role="status">
               Savings check-in due. Review your balance and update what you’ve
@@ -192,6 +208,10 @@ export default function NimiqContributions({
                     targetLuna: toLuna(target),
                     earmarkedLuna: toLuna(earmarked),
                     reviewDate: reviewDate || null,
+                    purchaseDate: purchaseDate || null,
+                    finalContributionLuna: purchaseDate
+                      ? toLuna(finalContribution)
+                      : 0,
                   });
                   await refresh();
                   setMessage("Savings plan updated. No NIM was moved.");
@@ -245,12 +265,45 @@ export default function NimiqContributions({
                   disabled={busy}
                 />
               </label>
+              <label>
+                Final contribution date (optional)
+                <input
+                  type="date"
+                  value={purchaseDate}
+                  onChange={(event) => setPurchaseDate(event.target.value)}
+                  disabled={busy}
+                />
+              </label>
+              {purchaseDate && (
+                <label>
+                  Expected final contribution (NIM)
+                  <input
+                    value={finalContribution}
+                    onChange={(event) =>
+                      setFinalContribution(event.target.value)
+                    }
+                    inputMode="decimal"
+                    required
+                    disabled={busy}
+                  />
+                </label>
+              )}
               <button type="submit" className="site-cta" disabled={busy}>
                 Save NIM plan
               </button>
             </form>
           )}
         </>
+      )}
+      {summary.enabled && summary.network && savings && (
+        <NimiqStaking
+          key={summary.network + ":" + savings.address}
+          path={path}
+          network={summary.network}
+          savings={savings}
+          timezone={timezone}
+          refreshSavings={refresh}
+        />
       )}
       {summary.config && (
         <>

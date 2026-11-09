@@ -15,3 +15,9 @@ NIM stays in the wallet. The Worker verifies wallet balances on the configured N
 For deployment, provision a dedicated D1 database, configure the application origin, apply migrations, and set `NIMIQ_NETWORK` and `NIMIQ_RPC_URL` for the same native Nimiq network.
 
 See the [Nimiq Mini Apps documentation](https://nimiq.dev/mini-apps).
+
+## Native staking
+
+Save a personal NIM plan and open **Stake NIM** in the goal. The testnet build reads the wallet position from the native RPC. Select an active validator for a first stake, or add NIM to the existing position. Approve each transaction in Nimiq Pay and check confirmation. The plan keeps liquid earmarks separate from staking.
+
+Set a final contribution date and expected NIM amount to see a suggested unstake date and amount. The estimate uses a five-day planning buffer. Chain reporting and jail rules determine when inactive stake can be retired. Withdraw retired stake through Nimiq Pay, then update the liquid earmark once the balance returns. Pool payouts vary and are not automatically attributed to goals.

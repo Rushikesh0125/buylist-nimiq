@@ -1,5 +1,6 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
+import { purchaseUnstakePlan } from "../shared/nimiq-staking.ts";
 import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
@@ -12,6 +13,7 @@ const path = "/api/goals/shared/nimiq";
 let mf: Miniflare;
 let head = 121;
 let walletBalance = 100_000;
+let stakingState: unknown = null;
 let db: Awaited<ReturnType<Miniflare["getD1Database"]>>;
 let network = "MainAlbatross";
 let transfer: Record<string, unknown> | undefined;
@@ -56,7 +58,13 @@ before(async () => {
           return Response.json({ result: { data: { network, number: head } } });
         if (method === "getPolicyConstants") {
           return Response.json({
-            result: { data: { genesisBlockNumber: 30, blocksPerBatch: 60 } },
+            result: {
+              data: {
+                genesisBlockNumber: 30,
+                blocksPerBatch: 60,
+                minimumStake: 10_000_000,
+              },
+            },
           });
         }
         if (method === "getAccountByAddress") {
@@ -70,6 +78,26 @@ before(async () => {
             },
           });
         }
+        if (method === "getStakerByAddress") {
+          return Response.json(
+            stakingState
+              ? { result: { data: stakingState } }
+              : {
+                  error: {
+                    code: -32603,
+                    data: "No staker with address: " + params[0],
+                  },
+                },
+          );
+        }
+        if (method === "getActiveValidators")
+          return Response.json({ result: { data: [{ address: recipient }] } });
+        if (method === "getBlockAfterReportingWindow")
+          return Response.json({ result: { data: 200 } });
+        if (method === "getValidatorByAddress")
+          return Response.json({ result: { data: { jailedFrom: 100 } } });
+        if (method === "getBlockAfterJail")
+          return Response.json({ result: { data: 300 } });
         assert.equal(method, "getTransactionByHash");
         assert.equal(params[0], txHash);
         return Response.json(
@@ -264,6 +292,8 @@ test("personal NIM plans stay private and cannot overallocate the same wallet", 
     targetLuna: 100_000,
     earmarkedLuna: 60_000,
     reviewDate: "2026-11-09",
+    purchaseDate: "2026-11-20",
+    finalContributionLuna: 10_000,
   };
   const created = await request(
     "/api/goals",
@@ -300,6 +330,36 @@ test("personal NIM plans stay private and cannot overallocate the same wallet", 
       .status,
     200,
   );
+  const initial = await request(
+    savedPath + "?staking=1",
+    "GET",
+    undefined,
+    owner,
+  );
+  assert.equal(initial.status, 200);
+  assert.deepEqual(await initial.json(), {
+    staker: null,
+    validators: [recipient],
+    releaseBlock: null,
+    height: 150,
+    minimumStake: 10_000_000,
+  });
+  stakingState = {
+    address: sender,
+    balance: 10_000_000,
+    delegation: recipient,
+    inactiveBalance: 500,
+    inactiveFrom: 100,
+    retiredBalance: 0,
+  };
+  const currentStake = (await (
+    await request(savedPath + "?staking=1", "GET", undefined, owner)
+  ).json()) as { releaseBlock: number };
+  assert.equal(currentStake.releaseBlock, 300);
+  const receipt = await (
+    await request(savedPath + "?stakingTx=" + txHash, "GET", undefined, owner)
+  ).json();
+  assert.deepEqual(receipt, { status: "confirmed" });
   walletBalance = 500;
   const snapshot = (await (
     await request(savedPath, "GET", undefined, owner)
@@ -308,11 +368,15 @@ test("personal NIM plans stay private and cannot overallocate the same wallet", 
       balance: number;
       earmarked_luna: number;
       totalEarmarked: number;
+      purchase_date: string;
+      final_contribution_luna: number;
     };
   };
   assert.equal(snapshot.savings.balance, 500);
   assert.equal(snapshot.savings.earmarked_luna, 60_000);
   assert.equal(snapshot.savings.totalEarmarked, 60_000);
+  assert.equal(snapshot.savings.purchase_date, "2026-11-20");
+  assert.equal(snapshot.savings.final_contribution_luna, 10_000);
   assert.equal(
     (
       await request(
@@ -324,4 +388,32 @@ test("personal NIM plans stay private and cannot overallocate the same wallet", 
     ).status,
     200,
   );
+});
+
+test("purchase forecast subtracts liquid and pending withdrawal funds and leaves no staking dust", () => {
+  const input = {
+    purchaseDate: "2026-12-02",
+    target: 1000,
+    liquid: 200,
+    finalContribution: 200,
+    active: 500,
+    inactive: 100,
+    retired: 50,
+    minimum: 100,
+  };
+  assert.deepEqual(purchaseUnstakePlan(input), {
+    date: "2026-11-27",
+    amount: 500,
+    remainingGap: 0,
+  });
+  assert.deepEqual(purchaseUnstakePlan({ ...input, active: 300 }), {
+    date: "2026-11-27",
+    amount: 300,
+    remainingGap: 150,
+  });
+  assert.deepEqual(purchaseUnstakePlan({ ...input, liquid: 1000 }), {
+    date: "2026-11-27",
+    amount: 0,
+    remainingGap: 0,
+  });
 });

@@ -27,6 +27,13 @@ const personalSavings = z
     targetLuna: amount,
     earmarkedLuna: z.number().int().min(0).max(1_000_000_000_000),
     reviewDate: z.string().refine(validDate).nullable(),
+    purchaseDate: z.string().refine(validDate).nullable().optional(),
+    finalContributionLuna: z
+      .number()
+      .int()
+      .min(0)
+      .max(1_000_000_000_000)
+      .optional(),
   })
   .refine((value) => value.earmarkedLuna <= value.targetLuna);
 type PersonalSavings = {
@@ -34,6 +41,8 @@ type PersonalSavings = {
   target_luna: number;
   earmarked_luna: number;
   review_date: string | null;
+  purchase_date: string | null;
+  final_contribution_luna: number;
 };
 type Network = "mainnet" | "testnet";
 type Config = { recipient: string; network: Network; target_luna: number };
@@ -64,9 +73,11 @@ async function rpc(env: Env, method: string, params: unknown[]) {
     error?: { code: number; message: string; data?: unknown };
   }>();
   if (
-    method === "getTransactionByHash" &&
     payload.error?.code === -32603 &&
-    payload.error.data === "Transaction not found: " + params[0]
+    ((method === "getTransactionByHash" &&
+      payload.error.data === "Transaction not found: " + params[0]) ||
+      (method === "getStakerByAddress" &&
+        payload.error.data === "No staker with address: " + params[0]))
   )
     return null;
   insist(
@@ -124,6 +135,113 @@ async function walletBalance(env: Env, network: Network, wallet: string) {
   return record.data.balance;
 }
 
+const nonnegative = z.number().int().nonnegative();
+const stakerSchema = z.object({
+  address,
+  balance: nonnegative,
+  delegation: address.nullable(),
+  inactiveBalance: nonnegative,
+  inactiveFrom: nonnegative.nullable(),
+  retiredBalance: nonnegative,
+});
+const stakingPolicy = chainPolicy.extend({
+  minimumStake: z.number().int().positive(),
+});
+
+async function stakingStatus(
+  env: Env,
+  network: Network,
+  wallet: string,
+  txHash: string | null,
+) {
+  const [rawHead, rawPolicy] = await Promise.all([
+    rpc(env, "getLatestBlock", [false]),
+    rpc(env, "getPolicyConstants", []),
+  ]);
+  const chain = head.parse(rawHead);
+  insist(
+    chain.network ===
+      (network === "mainnet" ? "MainAlbatross" : "TestAlbatross"),
+    502,
+    "NIMIQ_RPC_NETWORK",
+    "The verification node is on the wrong network.",
+  );
+  const policy = stakingPolicy.parse(rawPolicy);
+  insist(
+    chain.number >= policy.genesisBlockNumber,
+    502,
+    "NIMIQ_RPC_HEIGHT",
+    "Invalid chain height.",
+  );
+
+  if (txHash) {
+    const expected = hash.parse(txHash);
+    const raw = await rpc(env, "getTransactionByHash", [expected]);
+    if (!raw) return json({ status: "pending" });
+    const tx = z
+      .object({ hash, blockNumber: nonnegative, executionResult: z.boolean() })
+      .parse(raw);
+    insist(
+      tx.hash === expected,
+      502,
+      "NIMIQ_TX_MISMATCH",
+      "Unexpected transaction hash.",
+    );
+    const finalized =
+      chain.number -
+      ((chain.number - policy.genesisBlockNumber) % policy.blocksPerBatch);
+    return json({
+      status:
+        tx.blockNumber > finalized
+          ? "pending"
+          : tx.executionResult
+            ? "confirmed"
+            : "failed",
+    });
+  }
+
+  const raw = await rpc(env, "getStakerByAddress", [wallet]);
+  const staker = raw === null ? null : stakerSchema.parse(raw);
+  insist(
+    !staker || staker.address === wallet,
+    502,
+    "NIMIQ_STAKER_MISMATCH",
+    "Unexpected staking account.",
+  );
+  let releaseBlock: number | null = null;
+  if (staker && staker.inactiveBalance > 0 && staker.inactiveFrom !== null) {
+    const reporting = await rpc(env, "getBlockAfterReportingWindow", [
+      staker.inactiveFrom,
+    ]);
+    releaseBlock = nonnegative.parse(reporting);
+    if (staker.delegation) {
+      const validator = z
+        .object({ jailedFrom: nonnegative.nullable() })
+        .parse(await rpc(env, "getValidatorByAddress", [staker.delegation]));
+      if (validator.jailedFrom !== null) {
+        const jail = await rpc(env, "getBlockAfterJail", [
+          validator.jailedFrom,
+        ]);
+        releaseBlock = Math.max(releaseBlock, nonnegative.parse(jail));
+      }
+    }
+  }
+  const validators = staker
+    ? []
+    : z
+        .array(z.object({ address }))
+        .parse(await rpc(env, "getActiveValidators", []))
+        .map((entry) => entry.address)
+        .sort();
+  return json({
+    staker,
+    validators,
+    releaseBlock,
+    height: chain.number,
+    minimumStake: policy.minimumStake,
+  });
+}
+
 export async function nimiqRoutes(request: Request, env: Env, path: string) {
   const match = /^\/api\/goals\/([^/]+)\/nimiq(?:\/([a-f0-9-]+))?$/.exec(path);
   if (!match) return;
@@ -153,11 +271,26 @@ export async function nimiqRoutes(request: Request, env: Env, path: string) {
       .first();
     const savings = enabled
       ? await env.DB.prepare(
-          "SELECT address,target_luna,earmarked_luna,review_date FROM personal_nim_savings WHERE goal_id=? AND user_id=? AND network=?",
+          "SELECT address,target_luna,earmarked_luna,review_date,purchase_date,final_contribution_luna FROM personal_nim_savings WHERE goal_id=? AND user_id=? AND network=?",
         )
           .bind(goalId, user.id, network)
           .first<PersonalSavings>()
       : null;
+    const query = new URL(request.url).searchParams;
+    if (query.has("staking") || query.has("stakingTx")) {
+      insist(
+        enabled && savings,
+        409,
+        "NIMIQ_SAVINGS_REQUIRED",
+        "Save a NIM plan before opening staking.",
+      );
+      return stakingStatus(
+        env,
+        network,
+        savings.address,
+        query.get("stakingTx"),
+      );
+    }
     const balance = savings
       ? await walletBalance(env, network as Network, savings.address).catch(
           () => null,
@@ -196,9 +329,9 @@ export async function nimiqRoutes(request: Request, env: Env, path: string) {
     const balance = await walletBalance(env, network, savings.address);
     // Check other goals and write the allocation in the same SQLite statement.
     const result = await env.DB.prepare(
-      "INSERT INTO personal_nim_savings(goal_id,user_id,network,address,target_luna,earmarked_luna,review_date) " +
-        "SELECT ?,?,?,?,?,?,? WHERE ? = 0 OR ? + COALESCE((SELECT SUM(s.earmarked_luna) FROM personal_nim_savings s JOIN goals g ON g.id=s.goal_id WHERE s.user_id=? AND s.network=? AND s.address=? AND s.goal_id<>? AND g.purchased=0),0) <= ? OR EXISTS (SELECT 1 FROM personal_nim_savings WHERE goal_id=? AND user_id=? AND network=? AND address=? AND earmarked_luna>=?) " +
-        "ON CONFLICT(goal_id,user_id,network) DO UPDATE SET address=excluded.address,target_luna=excluded.target_luna,earmarked_luna=excluded.earmarked_luna,review_date=excluded.review_date",
+      "INSERT INTO personal_nim_savings(goal_id,user_id,network,address,target_luna,earmarked_luna,review_date,purchase_date,final_contribution_luna) " +
+        "SELECT ?,?,?,?,?,?,?,?,? WHERE ? = 0 OR ? + COALESCE((SELECT SUM(s.earmarked_luna) FROM personal_nim_savings s JOIN goals g ON g.id=s.goal_id WHERE s.user_id=? AND s.network=? AND s.address=? AND s.goal_id<>? AND g.purchased=0),0) <= ? OR EXISTS (SELECT 1 FROM personal_nim_savings WHERE goal_id=? AND user_id=? AND network=? AND address=? AND earmarked_luna>=?) " +
+        "ON CONFLICT(goal_id,user_id,network) DO UPDATE SET address=excluded.address,target_luna=excluded.target_luna,earmarked_luna=excluded.earmarked_luna,review_date=excluded.review_date,purchase_date=CASE WHEN ? THEN excluded.purchase_date ELSE personal_nim_savings.purchase_date END,final_contribution_luna=CASE WHEN ? THEN excluded.final_contribution_luna ELSE personal_nim_savings.final_contribution_luna END",
     )
       .bind(
         goalId,
@@ -208,6 +341,8 @@ export async function nimiqRoutes(request: Request, env: Env, path: string) {
         savings.targetLuna,
         savings.earmarkedLuna,
         savings.reviewDate,
+        savings.purchaseDate ?? null,
+        savings.finalContributionLuna ?? 0,
         savings.earmarkedLuna,
         savings.earmarkedLuna,
         user.id,
@@ -220,6 +355,8 @@ export async function nimiqRoutes(request: Request, env: Env, path: string) {
         network,
         savings.address,
         savings.earmarkedLuna,
+        Number(savings.purchaseDate !== undefined),
+        Number(savings.finalContributionLuna !== undefined),
       )
       .run();
     insist(
