@@ -185,13 +185,13 @@ test("personal optional plans cannot replace solo or fixed accepted schedules", 
     );
   }
 });
-test("unauthenticated access is denied and unconfigured OAuth fails closed", async () => {
+test("unauthenticated access is denied and retired OAuth route is unavailable", async () => {
   assert.equal(
     (await request("/api/goals", "GET", undefined, "unknown")).status,
     401,
   );
   const response = await request("/api/auth/google/start");
-  assert.equal(response.status, 503);
+  assert.equal(response.status, 404);
 });
 test("CSRF token required for creating a goal", async () =>
   assert.equal(

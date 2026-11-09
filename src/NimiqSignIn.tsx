@@ -39,7 +39,7 @@ export default function NimiqSignIn({ onSuccess }: { onSuccess: () => void }) {
   }
 
   return (
-    <div>
+    <div className="nimiq-sign-in">
       <button
         type="button"
         className="site-cta"

@@ -2,13 +2,7 @@ import Workspace from "./Workspace";
 import NimiqSignIn from "./NimiqSignIn";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { useEffect, useState } from "react";
-import {
-  ArrowRight,
-  ArrowUpRight,
-  DownloadSimple,
-  List,
-  X,
-} from "@phosphor-icons/react";
+import { ArrowUpRight, DownloadSimple, List, X } from "@phosphor-icons/react";
 
 type InstallPrompt = Event & {
   prompt: () => Promise<void>;
@@ -112,45 +106,29 @@ export default function Website() {
       )}
       {page === "workspace" ? (
         <Workspace />
-      ) : page.startsWith("invite/") ? (
-        <main className="login-panel">
-          <h1>You’re invited.</h1>
-          <p>Sign in to join your group.</p>
-          <NimiqSignIn onSuccess={() => go("workspace")} />
-          <a className="site-cta" href="/api/auth/google/start">
-            Continue with Google
-          </a>
-          <a className="underlink" href="#workspace">
-            Already signed in? Open invitation
-          </a>
-        </main>
-      ) : page === "login" ? (
-        <main className="login-page">
-          <section className="login-story">
-            <h1>
-              Good things.
-              <br />
-              <span>Within reach.</span>
+      ) : page === "login" || page.startsWith("invite/") ? (
+        <main className="wallet-login">
+          <section
+            className="wallet-login-card"
+            aria-labelledby="wallet-login-title"
+          >
+            <span className="eyebrow">BUYLIST � NIMIQ PAY</span>
+            <h1 id="wallet-login-title">
+              {page === "login" ? "Your plans start here." : "You�re invited."}
             </h1>
-            <p>A plan for the things you want, on your own or together.</p>
-            <div className="login-art">
-              <img src="/assets/sofa.svg" alt="Sofa illustration" />
-            </div>
-          </section>
-          <section className="login-panel">
-            <h2>
-              Your plans
-              <br />
-              start here.
-            </h2>
-            <p>Sign in to create a plan or join your group.</p>
+            <p>
+              {page === "login"
+                ? "Sign in to create a plan or join your group."
+                : "Sign in to join your group."}
+            </p>
             <NimiqSignIn onSuccess={() => go("workspace")} />
-            <a className="site-cta large" href="/api/auth/google/start">
-              Continue with Google
-              <ArrowRight size={22} />
-            </a>
-            <a className="underlink" href="#landing">
-              Back to home
+            <a
+              className="underlink"
+              href={page === "login" ? "#landing" : "#workspace"}
+            >
+              {page === "login"
+                ? "Back to home"
+                : "Already signed in? Open invitation"}
             </a>
           </section>
         </main>

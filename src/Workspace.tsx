@@ -157,17 +157,10 @@ export default function Workspace() {
             Your next plan.
           </h1>
           <p>Sign in to see your plans or start a new one.</p>
-          {config?.nimiqEnabled && (
+          {config?.nimiqEnabled ? (
             <NimiqSignIn onSuccess={() => location.reload()} />
-          )}
-          {config?.googleConfigured ? (
-            <a className="site-cta" href="/api/auth/google/start">
-              Continue with Google
-            </a>
           ) : (
-            !config?.nimiqEnabled && (
-              <p>Sign-in is temporarily unavailable. Please try again later.</p>
-            )
+            <p>Sign-in is temporarily unavailable. Please try again later.</p>
           )}
         </section>
       );

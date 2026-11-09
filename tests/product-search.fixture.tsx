@@ -10,7 +10,7 @@ import "@fontsource/bricolage-grotesque/800.css";
 if (!import.meta.env.DEV) throw new Error("Fixtures require the local development server.");
 window.fetch = async (input, options) => {
   const path = String(input);
-  if (path === "/api/config") return Response.json({googleConfigured: true});
+  if (path === "/api/config") return Response.json({nimiqEnabled: true});
   if (path === "/api/auth/session") return Response.json({user: {id:"fixture-user",name:"Fixture tester",email:"fixture@example.test"},csrfToken:"fixture-only"});
   if (path === "/api/goals" && (!options?.method || options.method === "GET")) return Response.json({goals:[]});
   if (path === "/api/payments/activity") return Response.json({payments:[]});

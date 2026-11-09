@@ -1,5 +1,3 @@
-GOOGLE_CLIENT_ID=""
-GOOGLE_CLIENT_SECRET=""
 CHANNEL3_API_KEY=""
 NIMIQ_RPC_URL="https://rpc.testnet.nimiqwatch.com/"
 NIMIQ_NETWORK="testnet"

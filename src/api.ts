@@ -1,7 +1,6 @@
 export type User = { id: string; name: string; email: string };
 export type Config = {
   nimiqEnabled: boolean;
-  googleConfigured: boolean;
   channel3Configured: boolean;
   bryntumEnabled: boolean;
 };

@@ -4,7 +4,7 @@ Plan a group purchase and contribute NIM from Nimiq Pay. Start with a flexible g
 
 ## How it works
 
-- Nimiq Pay signs a short-lived Buylist sign-in challenge. The Worker verifies the Ed25519 signature, consumes the challenge once, and issues the normal Buylist session. Wallet and Google sign-in create separate identities.
+- Nimiq Pay signs a short-lived Buylist sign-in challenge. The Worker verifies the Ed25519 signature, consumes the challenge once, and issues the normal Buylist session.
 - The Worker creates one pending contribution per member per goal. Nimiq Pay approves and sends the transfer with a random public reference. The reference contains no Buylist account or goal details.
 - The Worker verifies the active chain, transaction hash, sender, recipient, exact amount in Luna, successful execution, and reference. A matching transfer credits the goal once the batch's macro block has finalized it. Members can check confirmation again after reopening the app.
 - If the wallet submitted a transfer and Buylist did not receive the hash, copy it from Nimiq Pay activity into the pending contribution. Only discard the attempt after checking that no transfer was sent.
@@ -13,7 +13,7 @@ Plan a group purchase and contribute NIM from Nimiq Pay. Start with a flexible g
 ## Local setup
 
 1. Run `npm ci`, then `npm run build`.
-2. Copy `.dev.vars.example` to `.dev.vars`. Set `NIMIQ_NETWORK=testnet` and `NIMIQ_RPC_URL` to the public NimiqWatch testnet RPC from the example or a trusted testnet history node. Wallet sign-in does not require Google credentials.
+2. Copy `.dev.vars.example` to `.dev.vars`. Set `NIMIQ_NETWORK=testnet` and `NIMIQ_RPC_URL` to the public NimiqWatch testnet RPC from the example or a trusted testnet history node.
 3. Run `npm run db:local` and `npm run worker:dev`. To use a phone, serve the Worker over HTTPS and set `APP_ORIGIN` to that exact origin so login cookies and CSRF checks work.
 4. Open the HTTPS URL through **Nimiq Pay → Mini Apps → Custom URL** with the app on testnet. Use **Continue with Nimiq Pay**, create a flexible goal, and enable NIM savings. Invite another test wallet and check canceled, pending, and confirmed transfers.
 5. Run `npm run typecheck` and `npm test` for the local checks. The Worker tests use RPC fixtures and generated signing keys.

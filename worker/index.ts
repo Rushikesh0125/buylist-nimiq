@@ -23,9 +23,6 @@ export default {
             !!env.NIMIQ_RPC_URL &&
             (env.NIMIQ_NETWORK === "mainnet" ||
               env.NIMIQ_NETWORK === "testnet"),
-          googleConfigured: !!(
-            env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
-          ),
           channel3Configured: !!env.CHANNEL3_API_KEY,
           bryntumEnabled: String(env.BRYNTUM_LICENSE_CONFIRMED) === "true",
         });

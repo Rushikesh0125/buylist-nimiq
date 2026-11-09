@@ -112,7 +112,7 @@ window.fetch = async (input, options) => {
   const path = String(input);
   if (path === "/api/config")
     return Response.json({
-      googleConfigured: true,
+      nimiqEnabled: true,
       bryntumEnabled: plannerEnabled,
     });
   if (path === "/api/auth/session")
