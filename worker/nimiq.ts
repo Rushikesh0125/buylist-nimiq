@@ -77,6 +77,10 @@ const transaction = z.object({
   executionResult: z.boolean(),
   blockNumber: z.number().int().positive(),
 });
+const chainPolicy = z.object({
+  genesisBlockNumber: z.number().int().nonnegative(),
+  blocksPerBatch: z.number().int().positive(),
+});
 const head = z.object({
   number: z.number().int().positive(),
   network: z.string(),
@@ -249,7 +253,18 @@ export async function nimiqRoutes(request: Request, env: Env, path: string) {
     "This transaction does not match the contribution.",
   );
   // Wait until the containing batch has ended in a finalized macro block.
-  const finalizedHeight = chainHead.number - (chainHead.number % 60);
+  const { genesisBlockNumber, blocksPerBatch } = chainPolicy.parse(
+    await rpc(env, "getPolicyConstants", []),
+  );
+  const blocksSinceGenesis = chainHead.number - genesisBlockNumber;
+  insist(
+    blocksSinceGenesis >= 0,
+    502,
+    "NIMIQ_RPC_HEIGHT",
+    "Nimiq verification is temporarily unavailable.",
+  );
+  const finalizedHeight =
+    chainHead.number - (blocksSinceGenesis % blocksPerBatch);
   if (tx.blockNumber > finalizedHeight) return json({ status: "pending" }, 202);
   const result = await env.DB.prepare(
     "UPDATE OR IGNORE nimiq_contributions SET tx_hash=?,status='confirmed' WHERE id=? AND status='pending'",

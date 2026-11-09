@@ -52,6 +52,11 @@ before(async () => {
         };
         if (method === "getLatestBlock")
           return Response.json({ result: { data: { network, number: head } } });
+        if (method === "getPolicyConstants") {
+          return Response.json({
+            result: { data: { genesisBlockNumber: 30, blocksPerBatch: 60 } },
+          });
+        }
         assert.equal(method, "getTransactionByHash");
         assert.equal(params[0], txHash);
         return Response.json(
@@ -210,7 +215,7 @@ test("NIM contribution survives reload, requires matching finalized transfer and
     value: 10_000,
     recipientData: "00",
     executionResult: true,
-    blockNumber: 121,
+    blockNumber: 115,
   };
   assert.equal((await verify()).status, 422);
   transfer.recipientData = Buffer.from(id).toString("hex");
@@ -218,7 +223,7 @@ test("NIM contribution survives reload, requires matching finalized transfer and
   assert.equal((await verify()).status, 502);
   network = "MainAlbatross";
   assert.equal((await verify()).status, 202);
-  head = 180;
+  head = 150;
   const results = await Promise.all([verify(), verify()]);
   assert.deepEqual(
     results.map((response) => response.status),
