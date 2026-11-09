@@ -1,0 +1,767 @@
+.plan-detail {
+  --plan-accent: #c8f25c;
+  --accent: #c8f25c;
+  max-width: 1160px;
+  margin: 0 auto;
+}
+.authenticated-workspace.has-plan-detail {
+  position: relative;
+  padding-top: 28px;
+}
+.has-plan-detail > .api-error {
+  margin: 32px 0 16px;
+}
+.plan-detail.group-detail {
+  --plan-accent: #ff6b4a;
+  --accent: #ff6b4a;
+}
+.detail-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: none;
+  color: #aaaab7;
+  padding: 8px 0;
+  font-size: 13px;
+}
+.detail-heading {
+  margin: 22px 0 30px;
+}
+.detail-mode {
+  display: inline-block;
+  border: 1px solid #45454e;
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: var(--plan-accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+}
+.authenticated-workspace .detail-heading h1 {
+  margin: 14px 0 10px;
+  font-size: clamp(30px, 3.3vw, 46px);
+  letter-spacing: -1.8px;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+.detail-heading > p {
+  margin: 0;
+  color: #a5a5b2;
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 65ch;
+}
+.detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 28px;
+  align-items: start;
+}
+.detail-main {
+  display: contents;
+  min-width: 0;
+}
+.detail-layout {
+  row-gap: 0;
+}
+.detail-progress {
+  grid-column: 1;
+  grid-row: 1;
+}
+.detail-tabs {
+  grid-column: 1;
+  grid-row: 2;
+}
+.plan-detail .detail-panel {
+  grid-column: 1;
+  grid-row: 3;
+}
+.detail-contribute {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+}
+.detail-progress {
+  background: var(--plan-accent);
+  color: #111113;
+  padding: 30px;
+  border-radius: 24px;
+}
+.detail-progress-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 150px;
+}
+.detail-progress-copy {
+  min-width: 0;
+}
+.detail-progress-copy > span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+.detail-progress-copy > strong {
+  display: block;
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-size: clamp(40px, 4vw, 62px);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -2.5px;
+  margin: 12px 0 7px;
+  white-space: nowrap;
+}
+.detail-progress-copy > p {
+  font-size: 14px;
+  margin: 0;
+}
+.detail-image {
+  width: 132px;
+  height: 132px;
+  flex-shrink: 0;
+  background: #fff;
+  border-radius: 18px;
+  padding: 14px;
+  display: grid;
+  place-items: center;
+}
+.detail-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  max-height: 104px;
+}
+.detail-progress-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  margin: 24px 0 12px;
+}
+.detail-progress-label > strong {
+  font-weight: 700;
+}
+.detail-progress progress {
+  appearance: none;
+  width: 100%;
+  height: 7px;
+  display: block;
+  border: 0;
+  border-radius: 99px;
+  overflow: hidden;
+  background: #11111325;
+}
+.detail-progress progress::-webkit-progress-bar {
+  background: #11111325;
+}
+.detail-progress progress::-webkit-progress-value {
+  background: #111113;
+  border-radius: 99px;
+}
+.detail-progress progress::-moz-progress-bar {
+  background: #111113;
+  border-radius: 99px;
+}
+.detail-progress-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 11px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid #11111325;
+}
+.detail-progress-footer > span:last-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.detail-tabs {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  margin-top: 30px;
+  border-bottom: 1px solid #33333b;
+}
+.detail-tabs > button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  position: relative;
+  padding: 17px 0;
+  background: none;
+  border: 0;
+  color: #90909e;
+  font-size: 14px;
+  font-weight: 500;
+}
+.detail-tabs > button[aria-pressed="true"] {
+  color: #f5f5f2;
+}
+.detail-tabs > button[aria-pressed="true"]:after {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--plan-accent);
+  content: "";
+  border-radius: 3px;
+}
+.detail-tabs > button > span {
+  font-size: 10px;
+  border-radius: 6px;
+  padding: 2px 6px;
+  background: #2b2b33;
+  color: #d1d1da;
+}
+.plan-detail .detail-panel {
+  padding: 27px 0 0;
+  margin: 0;
+  border: 0;
+}
+.detail-panel h2 {
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-size: 24px;
+  letter-spacing: -0.5px;
+  margin: 0 0 10px;
+}
+.detail-panel h3 {
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-size: 18px;
+  margin: 27px 0 12px;
+}
+.detail-panel > p {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #a5a5b2;
+  max-width: 60ch;
+  margin: 0 0 22px;
+}
+.detail-panel > p.detail-accepted {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--plan-accent);
+  font-size: 12px;
+  margin: 12px 0;
+}
+.plan-detail .schedule-inputs {
+  gap: 14px;
+  grid-template-columns: 1fr 1fr 1.25fr;
+}
+.plan-detail .schedule-inputs label {
+  margin: 8px 0;
+  font-size: 12px;
+}
+.plan-detail input,
+.plan-detail select {
+  border-color: #42424c;
+  background: #202024;
+  border-radius: 11px;
+  padding: 12px;
+  font-size: 14px;
+  min-width: 0;
+  color: #f5f5f2;
+  color-scheme: dark;
+}
+.plan-detail .primary {
+  border: 0;
+  border-radius: 999px;
+  background: var(--plan-accent);
+  color: #111113;
+  font-family: "DM Sans", sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  min-height: 48px;
+  padding: 14px 22px;
+  max-width: none;
+  width: 100%;
+}
+.plan-detail .primary:disabled {
+  background: #29292f;
+  color: #91919d;
+  opacity: 1;
+}
+.plan-detail .secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #45454f;
+  border-radius: 999px;
+  color: #e4e4ea;
+  background: transparent;
+  padding: 11px 18px;
+  min-height: 42px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.plan-detail .account-actions {
+  gap: 10px;
+  margin: 16px 0;
+}
+.plan-detail .account-schedule > .primary {
+  width: auto;
+  min-width: 180px;
+  margin: 2px 0 12px;
+}
+.detail-contribute {
+  position: sticky;
+  top: 24px;
+  align-self: start;
+  background: #1c1c20;
+  border: 1px solid #34343d;
+  border-radius: 24px;
+  padding: 26px;
+}
+.detail-contribute h2 {
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-size: 26px;
+  letter-spacing: -0.7px;
+  margin: 0 0 24px;
+}
+.authenticated-workspace .detail-contribute label {
+  margin: 0 0 14px;
+  font-size: 12px;
+}
+.authenticated-workspace .detail-contribute .payment-amount {
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-weight: 800;
+  font-size: 36px;
+  letter-spacing: -1px;
+  padding: 16px;
+  width: 100%;
+  background: #111113;
+  border: 1px solid #45454f;
+  margin-top: 10px;
+}
+.contribution-presets {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 24px;
+}
+.contribution-presets > button {
+  flex: 1;
+  min-height: 36px;
+  padding: 6px 10px;
+  background: #27272d;
+  border: 1px solid #44444e;
+  border-radius: 999px;
+  color: #cbccd5;
+  font-size: 12px;
+}
+.contribution-presets > button[aria-pressed="true"] {
+  background: var(--plan-accent);
+  border-color: var(--plan-accent);
+  color: #111113;
+  font-weight: 700;
+}
+.detail-contribute > p {
+  color: #a5a5b2;
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 18px 0 0;
+}
+.detail-contribute .checkout-panel {
+  padding: 20px 0 0;
+}
+.detail-contribute .checkout-panel h3 {
+  font-size: 18px;
+}
+.detail-contribute .secondary {
+  margin-top: 20px;
+  width: 100%;
+}
+.plan-detail .person-row {
+  padding: 18px 0;
+  min-height: 0;
+  gap: 16px;
+  border-bottom: 1px solid #303039;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+.plan-detail .person-row small {
+  color: #9c9cab;
+  font-size: 11px;
+}
+.detail-people .secondary {
+  margin-top: 22px;
+}
+.detail-people label > button {
+  display: inline-block;
+  background: none;
+  border: 0;
+  color: var(--plan-accent);
+  font-size: 13px;
+  padding: 10px 0;
+}
+.detail-activity h2:not(:first-child) {
+  margin-top: 34px;
+}
+.detail-activity .person-row > span {
+  text-transform: capitalize;
+}
+.plan-detail .summary-block {
+  border: 1px solid #3d3d48;
+  background: #202025;
+  border-radius: 14px;
+  padding: 20px;
+  margin: 18px 0;
+}
+.plan-detail .summary-block > strong {
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-size: 28px;
+  color: #b9a6ff;
+}
+.plan-detail .summary-block > p {
+  font-size: 12px;
+  color: #b6b6c3;
+  line-height: 1.7;
+}
+.plan-detail .agenda {
+  margin: 0;
+}
+.plan-detail .agenda li {
+  gap: 14px;
+  font-size: 12px;
+}
+.plan-detail .agenda li input {
+  font-size: 12px;
+  width: 135px;
+}
+.plan-detail .agenda li > span:nth-of-type(2) {
+  font-size: 10px;
+  color: #b9a6ff;
+}
+@media (max-width: 1000px) {
+  .detail-layout {
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 20px;
+  }
+  .detail-progress {
+    padding: 24px;
+  }
+  .detail-image {
+    width: 100px;
+    height: 110px;
+    padding: 12px;
+  }
+  .detail-contribute {
+    padding: 22px;
+  }
+  .plan-detail .schedule-inputs {
+    grid-template-columns: 1fr 1fr;
+  }
+  .plan-detail .schedule-inputs label:last-child {
+    grid-column: 1/-1;
+  }
+}
+@media (max-width: 760px) {
+  .detail-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .detail-main {
+    display: contents;
+  }
+  .detail-progress {
+    order: 0;
+    width: 100%;
+  }
+  .detail-contribute {
+    order: 1;
+    position: static;
+    width: 100%;
+  }
+  .detail-tabs {
+    order: 2;
+    width: 100%;
+    margin-top: 0;
+    gap: 24px;
+  }
+  .plan-detail .detail-panel {
+    order: 3;
+    width: 100%;
+    padding-top: 0;
+  }
+  .detail-heading {
+    margin: 16px 0 24px;
+  }
+  .authenticated-workspace .detail-heading h1 {
+    font-size: 36px;
+  }
+  .detail-progress-top {
+    min-height: 120px;
+  }
+  .detail-progress-copy > strong {
+    font-size: 52px;
+  }
+  .detail-image {
+    width: 110px;
+    height: 110px;
+  }
+  .detail-progress-footer {
+    font-size: 10px;
+  }
+  .detail-contribute h2 {
+    font-size: 24px;
+    margin-bottom: 18px;
+  }
+  .authenticated-workspace .detail-contribute .payment-amount {
+    font-size: 30px;
+  }
+  .detail-contribute .primary {
+    min-height: 50px;
+  }
+  .plan-detail .account-actions {
+    flex-wrap: wrap;
+  }
+  .plan-detail .account-actions > .secondary {
+    flex: 1;
+  }
+  .detail-panel h2 {
+    font-size: 22px;
+  }
+  .plan-detail .schedule-inputs {
+    grid-template-columns: 1fr 1fr;
+  }
+  .plan-detail .schedule-inputs label:last-child {
+    grid-column: 1/-1;
+  }
+}
+@media (max-width: 380px) {
+  .detail-progress {
+    padding: 20px;
+  }
+  .detail-image {
+    width: 84px;
+    height: 94px;
+    padding: 9px;
+  }
+  .detail-progress-copy > strong {
+    font-size: 44px;
+  }
+  .detail-progress-footer > span:last-child {
+    display: none;
+  }
+  .detail-tabs {
+    gap: 20px;
+  }
+  .detail-tabs > button {
+    font-size: 13px;
+  }
+  .authenticated-workspace .detail-heading h1 {
+    font-size: 32px;
+  }
+}
+@media (max-width: 760px) {
+  .authenticated-workspace.has-plan-detail {
+    padding-top: 22px;
+  }
+  .detail-progress-top {
+    min-height: 110px;
+  }
+  .detail-progress {
+    padding: 24px;
+  }
+  .detail-progress-label {
+    margin-top: 20px;
+  }
+  .detail-progress-footer {
+    margin-top: 16px;
+    padding-top: 14px;
+  }
+  .detail-progress-top {
+    gap: 16px;
+  }
+  .detail-image {
+    width: 84px;
+    height: 94px;
+    padding: 9px;
+  }
+  .detail-progress-copy > strong {
+    font-size: 42px;
+    letter-spacing: -2px;
+  }
+  .detail-progress-copy > strong[data-long-amount="true"] {
+    font-size: 24px;
+    letter-spacing: -1px;
+  }
+}
+
+.saved-schedule-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 0 24px;
+  border-bottom: 1px solid #33333d;
+  margin-bottom: 24px;
+}
+.saved-schedule-summary > div > span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--plan-accent);
+  margin-bottom: 12px;
+}
+.saved-schedule-summary strong {
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-size: 30px;
+  letter-spacing: -1px;
+}
+.saved-schedule-summary strong > small {
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: #b5b5c1;
+}
+.saved-schedule-summary p {
+  color: #9f9fac;
+  font-size: 12px;
+  margin: 8px 0 0;
+}
+.saved-schedule-summary > .secondary {
+  width: auto;
+  gap: 7px;
+  flex-shrink: 0;
+  font-size: 12px;
+  padding: 9px 14px;
+}
+.plan-detail .schedule-editor > .primary {
+  width: auto;
+  min-width: 180px;
+  margin: 2px 0 12px;
+}
+.schedule-editor > p {
+  font-size: 13px;
+  color: #a5a5b2;
+  line-height: 1.7;
+}
+.schedule-editor .cancel-schedule-edit {
+  width: auto;
+  font-size: 12px;
+  color: #b1b1bf;
+  padding: 10px 0;
+  margin-left: 16px;
+  display: inline-block;
+}
+.schedule-editor > .primary {
+  display: inline-flex;
+}
+@media (max-width: 450px) {
+  .saved-schedule-summary {
+    gap: 14px;
+  }
+  .saved-schedule-summary > .secondary {
+    padding: 8px 12px;
+  }
+  .saved-schedule-summary strong {
+    font-size: 27px;
+  }
+}
+/* Optional payment consent stays separate from saved scheduling. */
+.plan-detail .automatic-card {
+  margin: 28px 0;
+  padding: 24px;
+  border: 1px solid #414145;
+  border-radius: 18px;
+  background: #19191c;
+}
+.plan-detail .automatic-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+.plan-detail .automatic-heading h3 {
+  margin: 7px 0 18px;
+}
+.plan-detail .automatic-state {
+  color: #c8f25c;
+  border: 1px solid #515d32;
+  border-radius: 20px;
+  padding: 5px 10px;
+  font-size: 12px;
+  text-transform: capitalize;
+}
+.plan-detail .automatic-card > strong {
+  font-size: 25px;
+}
+.plan-detail .automatic-card small {
+  font-size: 14px;
+  font-weight: 400;
+}
+.plan-detail .automatic-note {
+  color: #a5a5af;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.plan-detail .automatic-actions {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.plan-detail .automatic-actions .secondary {
+  width: auto;
+}
+.plan-detail .automatic-actions .text-action {
+  width: auto;
+  padding: 10px 0;
+}
+.plan-detail .automatic-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.plan-detail .automatic-consent {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 20px 0;
+  line-height: 1.6;
+}
+.plan-detail .automatic-consent input {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  accent-color: #c8f25c;
+  margin-top: 3px;
+}
+.plan-detail .payment-history-item {
+  padding: 0 0 16px;
+  border-bottom: 1px solid #343438;
+}
+.plan-detail .payment-history-item .person-row {
+  border-bottom: 0;
+}
+.plan-detail .refund-review {
+  padding: 16px;
+  background: #202023;
+  border-radius: 12px;
+  max-width: 440px;
+}
+.plan-detail .refund-review .text-action {
+  margin: 16px 0 0;
+}
+@media (max-width: 500px) {
+  .plan-detail .automatic-card {
+    padding: 18px;
+  }
+  .plan-detail .automatic-fields {
+    grid-template-columns: 1fr;
+  }
+  .plan-detail .automatic-heading {
+    flex-wrap: wrap;
+    gap: 0;
+  }
+}

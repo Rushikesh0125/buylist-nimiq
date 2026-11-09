@@ -1,0 +1,11 @@
+{
+  "googleLogin": {"passed": false, "evidence": ""},
+  "channel3Search": {"passed": false, "evidence": ""},
+  "paypalSandboxCapture": {"passed": false, "evidence": ""},
+  "paypalWebhook": {"passed": false, "evidence": ""},
+  "bryntumLicenseCoversJudging": {"passed": false, "evidence": ""},
+  "bryntumTimeline": {"passed": false, "evidence": ""},
+  "crossAccountGoal": {"passed": false, "evidence": ""},
+  "pwaOfflineAndInstall": {"passed": false, "evidence": ""},
+  "rollbackVerified": {"passed": false, "evidence": ""}
+}

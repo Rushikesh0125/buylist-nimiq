@@ -1,0 +1,18 @@
+PRAGMA foreign_keys = ON;
+CREATE TABLE users (id TEXT PRIMARY KEY, google_sub TEXT NOT NULL UNIQUE, email TEXT NOT NULL, name TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE oauth_states (state_hash TEXT PRIMARY KEY, verifier TEXT NOT NULL, nonce TEXT NOT NULL, expires_at INTEGER NOT NULL);
+CREATE TABLE sessions (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), csrf TEXT NOT NULL, expires_at INTEGER NOT NULL);
+CREATE INDEX sessions_expiry ON sessions(expires_at);
+CREATE TABLE goals (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL REFERENCES users(id), name TEXT NOT NULL, product_json TEXT, target_cents INTEGER NOT NULL CHECK(target_cents>0), currency TEXT NOT NULL CHECK(currency='USD'), mode TEXT NOT NULL CHECK(mode IN ('solo','fixed','flexible')), timezone TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, purchased INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
+CREATE TABLE memberships (goal_id TEXT NOT NULL REFERENCES goals(id), user_id TEXT NOT NULL REFERENCES users(id), role TEXT NOT NULL CHECK(role IN ('owner','member')), joined_at INTEGER NOT NULL, PRIMARY KEY(goal_id,user_id));
+CREATE TABLE invitations (token_hash TEXT PRIMARY KEY, goal_id TEXT NOT NULL REFERENCES goals(id), created_by TEXT NOT NULL REFERENCES users(id), expires_at INTEGER NOT NULL, accepted_by TEXT REFERENCES users(id));
+CREATE TABLE commitments (goal_id TEXT NOT NULL REFERENCES goals(id), user_id TEXT NOT NULL REFERENCES users(id), amount_cents INTEGER NOT NULL CHECK(amount_cents>0), frequency TEXT NOT NULL CHECK(frequency IN ('weekly','fortnightly','monthly')), start_date TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, accepted_at INTEGER NOT NULL, PRIMARY KEY(goal_id,user_id));
+CREATE TABLE schedule_events (id TEXT PRIMARY KEY, goal_id TEXT NOT NULL REFERENCES goals(id), user_id TEXT NOT NULL REFERENCES users(id), date TEXT NOT NULL, amount_cents INTEGER NOT NULL CHECK(amount_cents>0), version INTEGER NOT NULL DEFAULT 1, capture_id TEXT UNIQUE);
+CREATE INDEX events_goal ON schedule_events(goal_id,date);
+CREATE TABLE payment_attempts (id TEXT PRIMARY KEY, goal_id TEXT NOT NULL REFERENCES goals(id), user_id TEXT NOT NULL REFERENCES users(id), request_key TEXT NOT NULL, amount_cents INTEGER NOT NULL CHECK(amount_cents>0), currency TEXT NOT NULL CHECK(currency='USD'), order_id TEXT UNIQUE, capture_id TEXT UNIQUE, status TEXT NOT NULL CHECK(status IN ('created','awaiting_approval','capture_pending','completed','cancelled','failed','reversed')), reserved INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, UNIQUE(user_id,request_key));
+CREATE INDEX attempts_goal ON payment_attempts(goal_id,status);
+CREATE TABLE ledger (id TEXT PRIMARY KEY, goal_id TEXT NOT NULL REFERENCES goals(id), user_id TEXT NOT NULL REFERENCES users(id), attempt_id TEXT NOT NULL REFERENCES payment_attempts(id), provider_id TEXT NOT NULL UNIQUE, kind TEXT NOT NULL CHECK(kind IN ('capture','refund','reversal')), amount_cents INTEGER NOT NULL, created_at INTEGER NOT NULL);
+CREATE INDEX ledger_goal ON ledger(goal_id);
+CREATE TABLE provider_events (id TEXT PRIMARY KEY, type TEXT NOT NULL, payload TEXT NOT NULL, processed_at INTEGER, received_at INTEGER NOT NULL);
+CREATE TABLE audit_events (id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id), goal_id TEXT REFERENCES goals(id), action TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE product_snapshots (id TEXT PRIMARY KEY, payload TEXT NOT NULL, observed_at INTEGER NOT NULL);
