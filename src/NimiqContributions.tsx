@@ -1,14 +1,21 @@
 import { useEffect, useRef, useState } from "react";
-import { getHostNetwork, init, NimiqProviderError } from "@nimiq/mini-app-sdk";
+import { getHostNetwork, init } from "@nimiq/mini-app-sdk";
+import { dateInTimezone } from "../shared/automatic";
 import { api } from "./api";
 
+type Savings = {
+  address: string;
+  target_luna: number;
+  earmarked_luna: number;
+  review_date: string | null;
+  balance: number | null;
+  totalEarmarked: number;
+};
 type Summary = {
   enabled: boolean;
-  config: {
-    recipient: string;
-    network: "mainnet" | "testnet";
-    target_luna: number;
-  } | null;
+  network: "testnet" | "mainnet" | null;
+  savings: Savings | null;
+  config: { recipient: string; network: string } | null;
   confirmed: number;
   pending: { id: string; amount_luna: number; tx_hash: string | null } | null;
 };
@@ -17,11 +24,7 @@ function toLuna(input: string) {
   const parts = /^(\d{1,8})(?:\.(\d{1,5}))?$/.exec(input.trim());
   if (!parts)
     throw new Error("Enter a NIM amount with up to five decimal places.");
-  const luna =
-    Number(parts[1]) * 100_000 + Number((parts[2] || "").padEnd(5, "0"));
-  if (luna <= 0 || luna > 1_000_000_000_000)
-    throw new Error("Enter an amount between 0.00001 and 10,000,000 NIM.");
-  return luna;
+  return Number(parts[1]) * 100_000 + Number((parts[2] || "").padEnd(5, "0"));
 }
 
 const nim = (luna: number) =>
@@ -29,19 +32,20 @@ const nim = (luna: number) =>
 
 export default function NimiqContributions({
   goalId,
-  owner,
   closed,
-  legacyOnly,
+  timezone,
 }: {
   goalId: string;
-  owner: boolean;
   closed: boolean;
-  legacyOnly: boolean;
+  timezone: string;
 }) {
   const path = "/api/goals/" + encodeURIComponent(goalId) + "/nimiq";
   const [summary, setSummary] = useState<Summary>();
-  const [recipient, setRecipient] = useState("");
-  const [amount, setAmount] = useState("");
+  const [accounts, setAccounts] = useState<string[]>([]);
+  const [address, setAddress] = useState("");
+  const [target, setTarget] = useState("");
+  const [earmarked, setEarmarked] = useState("0");
+  const [reviewDate, setReviewDate] = useState("");
   const [hash, setHash] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -53,6 +57,12 @@ export default function NimiqContributions({
       .then((value) => {
         setSummary(value);
         setHash(value.pending?.tx_hash ?? "");
+        if (value.savings) {
+          setAddress(value.savings.address);
+          setTarget(String(value.savings.target_luna / 100_000));
+          setEarmarked(String(value.savings.earmarked_luna / 100_000));
+          setReviewDate(value.savings.review_date ?? "");
+        }
       })
       .catch((error: Error) => {
         if (!controller.signal.aborted) setMessage(error.message);
@@ -61,13 +71,13 @@ export default function NimiqContributions({
   }, [path]);
 
   const refresh = async () => setSummary(await api<Summary>(path));
-  const run = async (action: () => Promise<void>) => {
+  async function run(operation: () => Promise<void>) {
     if (running.current) return;
     running.current = true;
     setBusy(true);
     setMessage("");
     try {
-      await action();
+      await operation();
     } catch (error) {
       setMessage(
         error instanceof Error
@@ -75,61 +85,206 @@ export default function NimiqContributions({
           : "Could not complete the request.",
       );
     } finally {
-      running.current = false;
       setBusy(false);
+      running.current = false;
     }
-  };
-
-  async function verify(id: string, txHash: string) {
-    const result = await api<{ status: string }>(path + "/" + id, "POST", {
-      txHash: txHash.trim(),
-    });
-    await refresh();
-    setMessage(
-      result.status === "confirmed"
-        ? "Contribution confirmed."
-        : "Transfer pending. Check again after the next macro block.",
-    );
   }
 
-  const config = summary?.config;
-  if (
-    !summary ||
-    (!config && (legacyOnly || !summary.enabled || !owner || closed))
-  ) {
-    return message ? <p role="status">{message}</p> : null;
-  }
+  const savings = summary?.savings;
+  const due =
+    !closed &&
+    savings?.review_date &&
+    savings.review_date <= dateInTimezone(timezone);
+  const underfunded =
+    savings &&
+    savings.balance !== null &&
+    savings.balance < savings.totalEarmarked;
+
+  if (!summary) return message ? <p role="status">{message}</p> : null;
 
   return (
-    <section className="nimiq-contributions" aria-label="Nimiq contributions">
-      <h3>{legacyOnly ? "Previous NIM transfers" : "NIM savings"}</h3>
-      {config ? (
+    <section className="nimiq-contributions" aria-label="Personal NIM savings">
+      <h3>Personal NIM savings</h3>
+      <p>
+        Track what you’ve set aside for this goal. Your NIM stays spendable in
+        your wallet.
+      </p>
+      {!summary.enabled && (
+        <p>Wallet balance tracking is unavailable right now.</p>
+      )}
+      {savings && (
         <>
           <p>
             <strong>
-              {nim(summary.confirmed)} / {nim(config.target_luna)} NIM
+              {nim(savings.earmarked_luna)} / {nim(savings.target_luna)} NIM
+              earmarked
             </strong>{" "}
-            confirmed · {config.network}
+            · {summary.network}
           </p>
-          <p>Funds go directly to the organizer, who controls this wallet.</p>
-          <p className="nimiq-recipient">{config.recipient}</p>
-          {summary.pending ? (
+          <progress
+            aria-label="NIM earmarked toward goal"
+            value={savings.earmarked_luna}
+            max={savings.target_luna}
+          />
+          <p>
+            {savings.balance === null
+              ? "Wallet balance unavailable."
+              : "Wallet balance: " + nim(savings.balance) + " NIM"}
+          </p>
+          {underfunded && (
+            <p role="status">
+              Your wallet balance is lower than the total earmarked across your
+              goals. Add NIM to your wallet or reduce an earmark.
+            </p>
+          )}
+          {due && (
+            <p role="status">
+              Savings check-in due. Review your balance and update what you’ve
+              set aside.
+            </p>
+          )}
+          <button
+            type="button"
+            className="secondary"
+            disabled={busy}
+            onClick={() => void run(refresh)}
+          >
+            Refresh wallet balance
+          </button>
+        </>
+      )}
+      {summary.enabled && !closed && (
+        <>
+          <button
+            type="button"
+            className="secondary"
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                const wallet = await init({ timeout: 3000 }).catch(() => {
+                  throw new Error(
+                    "Open Buylist inside Nimiq Pay to connect your wallet.",
+                  );
+                });
+                if (getHostNetwork() !== summary.network)
+                  throw new Error(
+                    "Switch Nimiq Pay to " +
+                      summary.network +
+                      " and reopen Buylist.",
+                  );
+                const shared = await wallet.listAccounts();
+                if (!shared.length)
+                  throw new Error("Nimiq Pay did not share a wallet address.");
+                setAccounts(shared);
+                setAddress(shared.includes(address) ? address : shared[0]);
+              })
+            }
+          >
+            {address ? "Choose wallet" : "Connect Nimiq Pay wallet"}
+          </button>
+          {address && (
             <form
               onSubmit={(event) => {
                 event.preventDefault();
-                void run(() => verify(summary.pending!.id, hash));
+                void run(async () => {
+                  await api(path, "PATCH", {
+                    address,
+                    targetLuna: toLuna(target),
+                    earmarkedLuna: toLuna(earmarked),
+                    reviewDate: reviewDate || null,
+                  });
+                  await refresh();
+                  setMessage("Savings plan updated. No NIM was moved.");
+                });
               }}
             >
-              <p>
-                Pending contribution of {nim(summary.pending.amount_luna)} NIM.
-              </p>
+              {accounts.length > 1 ? (
+                <label>
+                  Wallet address
+                  <select
+                    value={address}
+                    onChange={(event) => setAddress(event.target.value)}
+                    disabled={busy}
+                  >
+                    {accounts.map((account) => (
+                      <option key={account} value={account}>
+                        {account}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <p className="nimiq-recipient">{address}</p>
+              )}
+              <label>
+                Savings target (NIM)
+                <input
+                  value={target}
+                  onChange={(event) => setTarget(event.target.value)}
+                  inputMode="decimal"
+                  disabled={busy}
+                  required
+                />
+              </label>
+              <label>
+                Amount set aside (NIM)
+                <input
+                  value={earmarked}
+                  onChange={(event) => setEarmarked(event.target.value)}
+                  inputMode="decimal"
+                  disabled={busy}
+                  required
+                />
+              </label>
+              <label>
+                Check-in date (optional)
+                <input
+                  type="date"
+                  value={reviewDate}
+                  onChange={(event) => setReviewDate(event.target.value)}
+                  disabled={busy}
+                />
+              </label>
+              <button type="submit" className="site-cta" disabled={busy}>
+                Save NIM plan
+              </button>
+            </form>
+          )}
+        </>
+      )}
+      {summary.config && (
+        <>
+          <h4>Previous NIM transfers</h4>
+          <p>
+            {nim(summary.confirmed)} NIM confirmed · {summary.config.network}
+          </p>
+          {summary.pending && (
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void run(async () => {
+                  const result = await api<{ status: string }>(
+                    path + "/" + summary.pending!.id,
+                    "POST",
+                    { txHash: hash.trim() },
+                  );
+                  await refresh();
+                  setMessage(
+                    result.status === "confirmed"
+                      ? "Previous transfer confirmed."
+                      : "Transfer pending. Check again after the next macro block.",
+                  );
+                });
+              }}
+            >
+              <p>Pending transfer of {nim(summary.pending.amount_luna)} NIM.</p>
               <label>
                 Transaction hash
                 <input
                   value={hash}
                   onChange={(event) => setHash(event.target.value)}
-                  required
                   pattern="[a-fA-F0-9]{64}"
+                  required
                 />
               </label>
               <button
@@ -137,139 +292,33 @@ export default function NimiqContributions({
                 type="submit"
                 disabled={busy || !summary.enabled}
               >
-                Check confirmation
+                Check previous transfer
               </button>
-              {!summary.pending.tx_hash && !hash && (
+              {!summary.pending.tx_hash && (
                 <button
-                  type="button"
                   className="secondary"
+                  type="button"
                   disabled={busy || !summary.enabled}
                   onClick={() => {
                     if (
                       !window.confirm(
-                        "Discard this attempt only if Nimiq Pay activity shows that no transfer was sent. A discarded attempt cannot be credited.",
+                        "Discard this record only if your wallet shows no transfer was sent.",
                       )
                     )
                       return;
                     void run(async () => {
                       await api(path + "/" + summary.pending!.id, "DELETE");
                       await refresh();
-                      setMessage("Attempt discarded.");
+                      setMessage("Previous transfer record discarded.");
                     });
                   }}
                 >
-                  Discard unsent attempt
+                  Discard unsent transfer
                 </button>
               )}
             </form>
-          ) : (
-            !legacyOnly &&
-            !closed &&
-            summary.enabled && (
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void run(async () => {
-                    const amountLuna = toLuna(amount);
-                    const wallet = await init();
-                    if (getHostNetwork() !== config.network)
-                      throw new Error(
-                        "Open this goal in an updated Nimiq Pay app on " +
-                          config.network +
-                          ".",
-                      );
-                    const accounts = await wallet.listAccounts();
-                    const intent = await api<{ id: string }>(path, "POST", {
-                      amountLuna,
-                      accounts,
-                    });
-                    setSummary({
-                      ...summary,
-                      pending: {
-                        id: intent.id,
-                        amount_luna: amountLuna,
-                        tx_hash: null,
-                      },
-                    });
-                    let txHash: string;
-                    try {
-                      txHash = await wallet.sendBasicTransactionWithData({
-                        recipient: config.recipient,
-                        value: amountLuna,
-                        data: intent.id,
-                      });
-                    } catch (error) {
-                      if (
-                        NimiqProviderError.is(error) &&
-                        error.type === "PERMISSION_DENIED"
-                      ) {
-                        await api(path + "/" + intent.id, "DELETE");
-                        await refresh();
-                        setMessage("Contribution canceled.");
-                        return;
-                      }
-                      throw new Error(
-                        "Check Nimiq Pay activity for the transfer. If it was sent, enter its transaction hash here.",
-                      );
-                    }
-                    setHash(txHash);
-                    await verify(intent.id, txHash);
-                  });
-                }}
-              >
-                <label>
-                  Contribution amount (NIM)
-                  <input
-                    value={amount}
-                    onChange={(event) => setAmount(event.target.value)}
-                    inputMode="decimal"
-                    required
-                  />
-                </label>
-                <button className="site-cta" type="submit" disabled={busy}>
-                  Contribute with Nimiq Pay
-                </button>
-              </form>
-            )
           )}
         </>
-      ) : (
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            void run(async () => {
-              await api(path, "PUT", { recipient, targetLuna: toLuna(amount) });
-              setAmount("");
-              await refresh();
-            });
-          }}
-        >
-          <p>
-            Set a NIM target and receiving address before making your first
-            contribution. Both are fixed once enabled.
-          </p>
-          <label>
-            Receiving Nimiq address
-            <input
-              value={recipient}
-              onChange={(event) => setRecipient(event.target.value)}
-              maxLength={48}
-              required
-            />
-          </label>
-          <label>
-            Target (NIM)
-            <input
-              value={amount}
-              onChange={(event) => setAmount(event.target.value)}
-              inputMode="decimal"
-              required
-            />
-          </label>
-          <button className="site-cta" type="submit" disabled={busy}>
-            Enable NIM savings
-          </button>
-        </form>
       )}
       {message && <p role="status">{message}</p>}
     </section>

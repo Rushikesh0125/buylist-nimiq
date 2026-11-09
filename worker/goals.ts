@@ -33,9 +33,9 @@ export async function goals(
     return json({
       goals: (
         await env.DB.prepare(
-          "SELECT g.*,m.role,COALESCE((SELECT SUM(amount_cents) FROM ledger WHERE goal_id=g.id),0) AS saved_cents FROM goals g JOIN memberships m ON m.goal_id=g.id WHERE m.user_id=? ORDER BY g.created_at DESC",
+          "SELECT g.*,m.role,COALESCE((SELECT SUM(amount_cents) FROM ledger WHERE goal_id=g.id),0) AS saved_cents,s.review_date AS nimiq_review_date FROM goals g JOIN memberships m ON m.goal_id=g.id LEFT JOIN personal_nim_savings s ON s.goal_id=g.id AND s.user_id=m.user_id AND s.network=? WHERE m.user_id=? ORDER BY g.created_at DESC",
         )
-          .bind(user.id)
+          .bind(env.NIMIQ_NETWORK ?? null, user.id)
           .all()
       ).results,
     });

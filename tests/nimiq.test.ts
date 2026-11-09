@@ -11,6 +11,8 @@ const txHash = "ab".repeat(32);
 const path = "/api/goals/shared/nimiq";
 let mf: Miniflare;
 let head = 121;
+let walletBalance = 100_000;
+let db: Awaited<ReturnType<Miniflare["getD1Database"]>>;
 let network = "MainAlbatross";
 let transfer: Record<string, unknown> | undefined;
 
@@ -57,6 +59,17 @@ before(async () => {
             result: { data: { genesisBlockNumber: 30, blocksPerBatch: 60 } },
           });
         }
+        if (method === "getAccountByAddress") {
+          return Response.json({
+            result: {
+              data: {
+                address: params[0],
+                balance: walletBalance,
+                type: "basic",
+              },
+            },
+          });
+        }
         assert.equal(method, "getTransactionByHash");
         assert.equal(params[0], txHash);
         return Response.json(
@@ -73,7 +86,7 @@ before(async () => {
       },
     }),
   );
-  const db = await mf.getD1Database("DB");
+  db = await mf.getD1Database("DB");
   for (const file of (await readdir("migrations")).sort()) {
     const sql = await readFile("migrations/" + file, "utf8");
     for (const statement of sql.match(
@@ -172,37 +185,45 @@ test("wallet login verifies the Nimiq signature, binds the nonce to the browser 
 test("NIM contribution survives reload, requires matching finalized transfer and credits once", async () => {
   const owner = "__Host-buylist=owner",
     member = "__Host-buylist=member";
-  const setup = { recipient, targetLuna: 500_000 };
   assert.equal(
     (await request(path, "GET", undefined, "__Host-buylist=outsider")).status,
     404,
   );
-  assert.equal((await request(path, "PUT", setup, member)).status, 403);
+  assert.equal(
+    (await request(path, "PUT", { recipient, targetLuna: 500_000 }, owner))
+      .status,
+    405,
+  );
   assert.equal(
     (
       await request(
         path,
-        "PUT",
-        { ...setup, recipient: recipient.replace("NQ26", "NQ25") },
-        owner,
+        "POST",
+        { amountLuna: 10_000, accounts: [sender] },
+        member,
       )
     ).status,
-    400,
+    405,
   );
-  assert.equal((await request(path, "PUT", setup, owner)).status, 201);
-  assert.equal((await request(path, "PUT", setup, owner)).status, 409);
-
-  const contribution = { amountLuna: 10_000, accounts: [sender] };
-  const created = await request(path, "POST", contribution, member);
-  assert.equal(created.status, 201);
-  const { id } = (await created.json()) as { id: string };
-  assert.equal((await request(path, "POST", contribution, member)).status, 409);
+  const id = "aa".repeat(16);
+  await db
+    .prepare("INSERT INTO nimiq_goals VALUES('shared','mainnet',?,500000)")
+    .bind(recipient)
+    .run();
+  await db
+    .prepare(
+      "INSERT INTO nimiq_contributions(id,goal_id,user_id,amount_luna,accounts_json,network,status,created_at) VALUES(?,'shared','member',10000,?,'mainnet','pending',0)",
+    )
+    .bind(id, JSON.stringify([sender]))
+    .run();
   const verify = () => request(path + "/" + id, "POST", { txHash }, member);
 
   assert.equal((await verify()).status, 202);
   const pending = await (await request(path, "GET", undefined, member)).json();
   assert.deepEqual(pending, {
     enabled: true,
+    network: "mainnet",
+    savings: null,
     config: { recipient, target_luna: 500_000, network: "mainnet" },
     confirmed: 0,
     pending: { id, amount_luna: 10_000, tx_hash: txHash },
@@ -235,38 +256,72 @@ test("NIM contribution survives reload, requires matching finalized transfer and
   assert.equal(summary.confirmed, 10_000);
 });
 
-test("owners can enable NIM savings for solo and fixed goals", async () => {
-  const cookie = "__Host-buylist=owner";
-  for (const mode of ["solo", "fixed"]) {
-    const created = await request(
-      "/api/goals",
-      "POST",
-      {
-        name: mode + " NIM goal",
-        targetCents: 10000,
-        mode,
-        timezone: "UTC",
-      },
-      cookie,
-    );
-    assert.equal(created.status, 201);
-    const { id } = (await created.json()) as { id: string };
-    const path = "/api/goals/" + id + "/nimiq";
-    assert.equal(
-      (await request(path, "PUT", { recipient, targetLuna: 500_000 }, cookie))
-        .status,
-      201,
-    );
-    assert.equal(
-      (
-        await request(
-          path,
-          "POST",
-          { amountLuna: 10_000, accounts: [sender] },
-          cookie,
-        )
-      ).status,
-      201,
-    );
-  }
+test("personal NIM plans stay private and cannot overallocate the same wallet", async () => {
+  const owner = "__Host-buylist=owner";
+  const member = "__Host-buylist=member";
+  const body = {
+    address: sender,
+    targetLuna: 100_000,
+    earmarkedLuna: 60_000,
+    reviewDate: "2026-11-09",
+  };
+  const created = await request(
+    "/api/goals",
+    "POST",
+    { name: "Solo", targetCents: 10000, mode: "solo", timezone: "UTC" },
+    owner,
+  );
+  assert.equal(created.status, 201);
+  const { id } = (await created.json()) as { id: string };
+  const solo = "/api/goals/" + id + "/nimiq";
+  const responses = await Promise.all([
+    request(path, "PATCH", body, owner),
+    request(solo, "PATCH", body, owner),
+  ]);
+  assert.deepEqual(responses.map((r) => r.status).sort(), [200, 409]);
+  const savedPath = responses[0].status === 200 ? path : solo;
+  assert.equal(
+    (
+      await request(
+        path,
+        "PATCH",
+        { ...body, reviewDate: "2026-02-31" },
+        member,
+      )
+    ).status,
+    400,
+  );
+  const privateView = (await (
+    await request(path, "GET", undefined, member)
+  ).json()) as { savings: unknown };
+  assert.equal(privateView.savings, null);
+  assert.equal(
+    (await request(path, "PATCH", { ...body, earmarkedLuna: 1 }, member))
+      .status,
+    200,
+  );
+  walletBalance = 500;
+  const snapshot = (await (
+    await request(savedPath, "GET", undefined, owner)
+  ).json()) as {
+    savings: {
+      balance: number;
+      earmarked_luna: number;
+      totalEarmarked: number;
+    };
+  };
+  assert.equal(snapshot.savings.balance, 500);
+  assert.equal(snapshot.savings.earmarked_luna, 60_000);
+  assert.equal(snapshot.savings.totalEarmarked, 60_000);
+  assert.equal(
+    (
+      await request(
+        savedPath,
+        "PATCH",
+        { ...body, earmarkedLuna: 50_000 },
+        owner,
+      )
+    ).status,
+    200,
+  );
 });

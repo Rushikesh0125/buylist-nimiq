@@ -2,8 +2,8 @@ import { readFile } from "node:fs/promises";
 const required = [
   "nimiqWalletLogin",
   "channel3Search",
-  "nimiqTestnetTransfer",
-  "nimiqMainnetTransfer",
+  "nimiqTestnetSavings",
+  "nimiqMainnetSavings",
   "bryntumLicenseCoversJudging",
   "bryntumTimeline",
   "crossAccountGoal",

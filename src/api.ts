@@ -15,6 +15,7 @@ export type Goal = {
   purchased: number;
   role: string;
   product_json: string | null;
+  nimiq_review_date?: string | null;
 };
 export type Product = {
   id: string;

@@ -16,8 +16,6 @@ import {
 import ProductSearch from "./ProductSearch";
 import AccountMenu from "./AccountMenu";
 import NimiqContributions from "./NimiqContributions";
-import PersonalSavings from "./PersonalSavings";
-import { vaultDeployment } from "./savingsVault";
 import NimiqSignIn from "./NimiqSignIn";
 import {
   ArrowLeft,
@@ -30,6 +28,7 @@ import {
 } from "@phosphor-icons/react";
 import ContributionPlanner from "./ContributionPlanner";
 import { canMove } from "../shared/planner";
+import { dateInTimezone } from "../shared/automatic";
 export default function Workspace() {
   const [user, setUser] = useState<User | null>(null),
     [config, setConfig] = useState<Config | null>(null),
@@ -358,17 +357,11 @@ export default function Workspace() {
                     Check current merchant offer
                   </button>
                 )}
-                <PersonalSavings
-                  key={"vault:" + g.id}
-                  goalId={g.id}
-                  closed={!!g.purchased}
-                />
                 <NimiqContributions
                   key={g.id}
                   goalId={g.id}
-                  owner={g.role === "owner"}
                   closed={!!g.purchased}
-                  legacyOnly={!!vaultDeployment}
+                  timezone={g.timezone}
                 />
               </aside>
               <nav className="detail-tabs" aria-label="Plan sections">
@@ -782,7 +775,7 @@ export default function Workspace() {
             </div>
           )}
           <p>
-            NIM contributions go to the goal organizer. Purchases are completed
+            Your savings stay in your Nimiq Pay wallet. Purchases are completed
             with the retailer.
           </p>
           {product.merchantUrl && (
@@ -854,6 +847,11 @@ export default function Workspace() {
               <h2>{g.name}</h2>
               <strong>{usd(g.saved_cents)}</strong>
               <span>of {usd(g.target_cents)} received</span>
+              {!g.purchased &&
+                g.nimiq_review_date &&
+                g.nimiq_review_date <= dateInTimezone(g.timezone) && (
+                  <span>Savings check-in due</span>
+                )}
               <progress value={g.saved_cents} max={g.target_cents} />
             </button>
           ))}

@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { id, insist, json, jsonBody, member, now, session } from "./http";
+import { validDate } from "../shared/domain";
+import { insist, json, jsonBody, member, now, session } from "./http";
 
 const address = z
   .string()
@@ -20,11 +21,20 @@ const hash = z
   .string()
   .regex(/^[a-f0-9]{64}$/i)
   .transform((value) => value.toLowerCase());
-const configSchema = z.object({ recipient: address, targetLuna: amount });
-const contributionSchema = z.object({
-  amountLuna: amount,
-  accounts: z.array(address).min(1).max(32),
-});
+const personalSavings = z
+  .object({
+    address,
+    targetLuna: amount,
+    earmarkedLuna: z.number().int().min(0).max(1_000_000_000_000),
+    reviewDate: z.string().refine(validDate).nullable(),
+  })
+  .refine((value) => value.earmarkedLuna <= value.targetLuna);
+type PersonalSavings = {
+  address: string;
+  target_luna: number;
+  earmarked_luna: number;
+  review_date: string | null;
+};
 type Network = "mainnet" | "testnet";
 type Config = { recipient: string; network: Network; target_luna: number };
 type Attempt = {
@@ -86,13 +96,41 @@ const head = z.object({
   network: z.string(),
 });
 
+async function walletBalance(env: Env, network: Network, wallet: string) {
+  const [chain, account] = await Promise.all([
+    rpc(env, "getLatestBlock", [false]),
+    rpc(env, "getAccountByAddress", [wallet]),
+  ]);
+  insist(
+    head.parse(chain).network ===
+      (network === "mainnet" ? "MainAlbatross" : "TestAlbatross"),
+    502,
+    "NIMIQ_RPC_NETWORK",
+    "The verification node is on the wrong network.",
+  );
+  const record = z
+    .object({
+      address,
+      balance: z.number().int().nonnegative(),
+      type: z.literal("basic"),
+    })
+    .safeParse(account);
+  insist(
+    record.success && record.data.address === wallet,
+    502,
+    "NIMIQ_WALLET_BALANCE",
+    "Could not verify this wallet balance.",
+  );
+  return record.data.balance;
+}
+
 export async function nimiqRoutes(request: Request, env: Env, path: string) {
   const match = /^\/api\/goals\/([^/]+)\/nimiq(?:\/([a-f0-9-]+))?$/.exec(path);
   if (!match) return;
   const [, goalId, attemptId] = match;
   const method = request.method;
   const user = await session(request, env, method !== "GET");
-  const goal = await member(env, goalId, user.id, method === "PUT");
+  const goal = await member(env, goalId, user.id);
   const network = env.NIMIQ_NETWORK;
   const enabled =
     !!env.NIMIQ_RPC_URL && (network === "mainnet" || network === "testnet");
@@ -113,8 +151,33 @@ export async function nimiqRoutes(request: Request, env: Env, path: string) {
     )
       .bind(goalId, user.id)
       .first();
+    const savings = enabled
+      ? await env.DB.prepare(
+          "SELECT address,target_luna,earmarked_luna,review_date FROM personal_nim_savings WHERE goal_id=? AND user_id=? AND network=?",
+        )
+          .bind(goalId, user.id, network)
+          .first<PersonalSavings>()
+      : null;
+    const balance = savings
+      ? await walletBalance(env, network as Network, savings.address).catch(
+          () => null,
+        )
+      : null;
+    const total = savings
+      ? await env.DB.prepare(
+          "SELECT COALESCE(SUM(s.earmarked_luna),0) AS amount FROM personal_nim_savings s JOIN goals g ON g.id=s.goal_id WHERE s.user_id=? AND s.network=? AND s.address=? AND g.purchased=0",
+        )
+          .bind(user.id, network, savings.address)
+          .first<{ amount: number }>()
+      : null;
     return json({
       enabled,
+      network: enabled ? network : null,
+      savings: savings && {
+        ...savings,
+        balance,
+        totalEarmarked: total?.amount ?? 0,
+      },
       config,
       confirmed: summary?.confirmed ?? 0,
       pending,
@@ -127,69 +190,58 @@ export async function nimiqRoutes(request: Request, env: Env, path: string) {
     "NIMIQ_DISABLED",
     "Nimiq contributions are unavailable.",
   );
-  if (method === "PUT" && !attemptId) {
-    insist(
-      !goal.purchased,
-      409,
-      "GOAL_CLOSED",
-      "This goal is closed.",
-    );
-    const { recipient, targetLuna } = configSchema.parse(
-      await jsonBody(request),
-    );
-    const result = await env.DB.prepare(
-      "INSERT INTO nimiq_goals(goal_id,network,recipient,target_luna) VALUES(?,?,?,?) ON CONFLICT(goal_id) DO NOTHING",
-    )
-      .bind(goalId, network, recipient, targetLuna)
-      .run();
-    insist(
-      result.meta.changes === 1,
-      409,
-      "NIMIQ_CONFIGURED",
-      "This goal already has a receiving address.",
-    );
-    return json({ ok: true }, 201);
-  }
-
-  insist(
-    config && config.network === network,
-    409,
-    "NIMIQ_CONFIG",
-    "The goal is unavailable on this network.",
-  );
-  if (method === "POST" && !attemptId) {
+  if (method === "PATCH" && !attemptId) {
     insist(!goal.purchased, 409, "GOAL_CLOSED", "This goal is closed.");
-    const { amountLuna, accounts } = contributionSchema.parse(
-      await jsonBody(request),
-    );
-    const reference = id().replace(/-/g, "");
+    const savings = personalSavings.parse(await jsonBody(request));
+    const balance = await walletBalance(env, network, savings.address);
+    // Check other goals and write the allocation in the same SQLite statement.
     const result = await env.DB.prepare(
-      "INSERT OR IGNORE INTO nimiq_contributions(id,goal_id,user_id,amount_luna,accounts_json,network,status,created_at) VALUES(?,?,?,?,?,?,'pending',?)",
+      "INSERT INTO personal_nim_savings(goal_id,user_id,network,address,target_luna,earmarked_luna,review_date) " +
+        "SELECT ?,?,?,?,?,?,? WHERE ? = 0 OR ? + COALESCE((SELECT SUM(s.earmarked_luna) FROM personal_nim_savings s JOIN goals g ON g.id=s.goal_id WHERE s.user_id=? AND s.network=? AND s.address=? AND s.goal_id<>? AND g.purchased=0),0) <= ? OR EXISTS (SELECT 1 FROM personal_nim_savings WHERE goal_id=? AND user_id=? AND network=? AND address=? AND earmarked_luna>=?) " +
+        "ON CONFLICT(goal_id,user_id,network) DO UPDATE SET address=excluded.address,target_luna=excluded.target_luna,earmarked_luna=excluded.earmarked_luna,review_date=excluded.review_date",
     )
       .bind(
-        reference,
         goalId,
         user.id,
-        amountLuna,
-        JSON.stringify(accounts),
         network,
-        now(),
+        savings.address,
+        savings.targetLuna,
+        savings.earmarkedLuna,
+        savings.reviewDate,
+        savings.earmarkedLuna,
+        savings.earmarkedLuna,
+        user.id,
+        network,
+        savings.address,
+        goalId,
+        balance,
+        goalId,
+        user.id,
+        network,
+        savings.address,
+        savings.earmarkedLuna,
       )
       .run();
     insist(
       result.meta.changes === 1,
       409,
-      "NIMIQ_PENDING",
-      "Resolve your pending contribution first.",
+      "NIMIQ_INSUFFICIENT_BALANCE",
+      "That amount and your other goals exceed the available wallet balance.",
     );
-    return json({ id: reference }, 201);
+    return json({ ok: true });
   }
 
   insist(
     attemptId && (method === "POST" || method === "DELETE"),
     405,
     "METHOD_NOT_ALLOWED",
-    "Unsupported request.",
+    "New savings use personal wallet tracking.",
+  );
+  insist(
+    config && config.network === network,
+    409,
+    "NIMIQ_CONFIG",
+    "The transfer is unavailable on this network.",
   );
   const attempt = await env.DB.prepare(
     "SELECT id,amount_luna,accounts_json,tx_hash,status FROM nimiq_contributions WHERE id=? AND goal_id=? AND user_id=?",
