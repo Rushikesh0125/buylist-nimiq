@@ -96,7 +96,7 @@ export default function NimiqContributions({
   }
 
   return (
-    <section aria-label="Nimiq contributions">
+    <section className="nimiq-contributions" aria-label="Nimiq contributions">
       <h3>NIM savings</h3>
       {config ? (
         <>
@@ -107,7 +107,7 @@ export default function NimiqContributions({
             confirmed · {config.network}
           </p>
           <p>Funds go directly to the organizer, who controls this wallet.</p>
-          <p style={{ overflowWrap: "anywhere" }}>{config.recipient}</p>
+          <p className="nimiq-recipient">{config.recipient}</p>
           {summary.pending ? (
             <form
               onSubmit={(event) => {
@@ -127,7 +127,11 @@ export default function NimiqContributions({
                   pattern="[a-fA-F0-9]{64}"
                 />
               </label>
-              <button type="submit" disabled={busy || !summary.enabled}>
+              <button
+                className="site-cta"
+                type="submit"
+                disabled={busy || !summary.enabled}
+              >
                 Check confirmation
               </button>
               {!summary.pending.tx_hash && !hash && (
@@ -216,7 +220,7 @@ export default function NimiqContributions({
                     required
                   />
                 </label>
-                <button type="submit" disabled={busy}>
+                <button className="site-cta" type="submit" disabled={busy}>
                   Contribute with Nimiq Pay
                 </button>
               </form>
@@ -256,7 +260,7 @@ export default function NimiqContributions({
               required
             />
           </label>
-          <button type="submit" disabled={busy}>
+          <button className="site-cta" type="submit" disabled={busy}>
             Enable NIM savings
           </button>
         </form>

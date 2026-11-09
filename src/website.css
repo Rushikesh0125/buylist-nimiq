@@ -47,3 +47,57 @@
   margin-top: 12px;
   font-size: 14px;
 }
+
+@media (max-width: 800px) {
+  .authenticated-workspace {
+    padding-inline: max(16px, env(safe-area-inset-left)) max(16px, env(safe-area-inset-right));
+    padding-bottom: max(56px, env(safe-area-inset-bottom));
+  }
+  .authenticated-workspace input,
+  .authenticated-workspace select {
+    min-width: 0;
+    min-height: 44px;
+    font-size: 16px;
+  }
+  .account-editor fieldset {
+    min-width: 0;
+  }
+  .account-editor .choices {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .account-editor .choices button {
+    min-height: 48px;
+    padding-inline: 6px;
+    white-space: normal;
+  }
+  .account-editor > .primary {
+    width: 100%;
+  }
+  .account-goal h2 {
+    overflow-wrap: anywhere;
+  }
+}
+@media (max-width: 480px) {
+  .site-header {
+    height: 64px;
+  }
+  .site-header nav {
+    top: 64px;
+  }
+  .hero-copy h1 {
+    font-size: clamp(42px, 12vw, 59px);
+    letter-spacing: -0.05em;
+  }
+  .illustration-tile {
+    min-height: 140px;
+    padding: 16px;
+    gap: 12px;
+  }
+  .illustration-tile img {
+    height: 96px;
+  }
+  .illustration-tile span {
+    font-size: clamp(18px, 5.5vw, 28px);
+  }
+}

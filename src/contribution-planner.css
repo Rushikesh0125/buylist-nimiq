@@ -680,3 +680,11 @@
   height: 36px;
   min-height: 36px;
 }
+
+@media (max-width: 860px) {
+  .plan-detail .contribution-planner {
+    order: 4;
+    width: 100%;
+    margin-top: 12px;
+  }
+}
