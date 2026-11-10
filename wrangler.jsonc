@@ -40,6 +40,7 @@
       "vars": {
         "ENVIRONMENT": "staging",
         "APP_ORIGIN": "https://buylist-nimiq-staging.jadhav-rushikesh-ggl.workers.dev",
+        "NIMIQ_TESTNET_USD_RATE": "0.00025563",
         "AI_MODEL": "@cf/meta/llama-3.1-8b-instruct",
         "BRYNTUM_LICENSE_CONFIRMED": "true"
       },

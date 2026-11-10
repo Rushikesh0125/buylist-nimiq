@@ -322,7 +322,10 @@ const scheduleInput = z.object({
 const toLuna = (cents: number, rate: number) =>
   Math.ceil((cents * 1000) / rate);
 
-async function scheduleRate() {
+async function scheduleRate(env: Env, network: Network) {
+  const testRate = Number(env.NIMIQ_TESTNET_USD_RATE);
+  if (network === "testnet" && Number.isFinite(testRate) && testRate > 0)
+    return testRate;
   const unavailable =
     "A fresh NIM price is unavailable. Try linking the saved schedule again shortly.";
   const response = await fetch(
@@ -510,7 +513,7 @@ export async function nimiqRoutes(request: Request, env: Env, path: string) {
         "NIMIQ_WALLET_CHANGED",
         "Your existing earmark uses a different wallet. It has been preserved.",
       );
-      rate = existing?.schedule_usd_rate ?? (await scheduleRate());
+      rate = existing?.schedule_usd_rate ?? (await scheduleRate(env, network));
       const targetLuna = toLuna(basis.cents, rate);
       insist(
         targetLuna <= 1_000_000_000_000,

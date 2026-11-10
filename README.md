@@ -21,3 +21,5 @@ See the [Nimiq Mini Apps documentation](https://nimiq.dev/mini-apps).
 Save your contribution schedule and use **Contribute** in the goal. The scheduled amount is staked after you approve it in Nimiq Pay. The preview uses a configured, active testnet validator for the first stake and preserves the wallet’s existing delegation thereafter. Staking and withdrawal details are available separately. The plan keeps liquid earmarks separate from staking.
 
 The saved schedule supplies the final contribution date and amount for the unstake suggestion. The estimate uses a five-day planning buffer. Chain reporting and jail rules determine when inactive stake can be retired. Withdraw retired stake through Nimiq Pay, then update the liquid earmark once the balance returns. Pool payouts vary and are not automatically attributed to goals.
+
+Cloudflare staging uses a fixed, illustrative NIM/USD planning rate for testnet. Mainnet schedule setup requires a fresh price quote.
