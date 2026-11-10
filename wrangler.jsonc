@@ -39,15 +39,15 @@
       "name": "buylist-nimiq-staging",
       "vars": {
         "ENVIRONMENT": "staging",
-        "APP_ORIGIN": "https://buylist-nimiq-staging.example.invalid",
+        "APP_ORIGIN": "https://buylist-nimiq-staging.jadhav-rushikesh-ggl.workers.dev",
         "AI_MODEL": "@cf/meta/llama-3.1-8b-instruct",
-        "BRYNTUM_LICENSE_CONFIRMED": "false"
+        "BRYNTUM_LICENSE_CONFIRMED": "true"
       },
       "d1_databases": [
         {
           "binding": "DB",
           "database_name": "buylist-nimiq-staging",
-          "database_id": "00000000-0000-4000-8000-000000000001",
+          "database_id": "3a856e5b-a7d0-42a2-9cb1-06f7248dee75",
           "migrations_dir": "migrations"
         }
       ],
