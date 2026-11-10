@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getHostNetwork, init } from "@nimiq/mini-app-sdk";
 import { dateInTimezone } from "../shared/automatic";
 import {
@@ -27,6 +27,7 @@ type Savings = {
   purchase_date: string | null;
   final_contribution_luna: number;
   contribution_luna?: number;
+  contribution_date?: string | null;
   balance: number | null;
   totalEarmarked: number;
 };
@@ -52,12 +53,14 @@ export default function NimiqStaking({
   savings,
   timezone,
   refreshSavings,
+  takeFirstContribution,
 }: {
   path: string;
   network: "mainnet" | "testnet";
   savings: Savings;
   timezone: string;
   refreshSavings: () => Promise<unknown>;
+  takeFirstContribution: () => boolean;
 }) {
   const [status, setStatus] = useState<Staking>();
   const [withdrawAmount, setWithdrawAmount] = useState("");
@@ -163,6 +166,13 @@ export default function NimiqStaking({
       let request: () => Promise<string>;
       if (action === "stake") {
         const value = current.savings.contribution_luna ?? 0;
+        if (
+          !current.savings.contribution_date ||
+          current.savings.contribution_date > dateInTimezone(timezone)
+        )
+          throw new Error(
+            "Your first contribution is scheduled for a later date.",
+          );
         if (!value)
           throw new Error("There is no scheduled contribution to stake.");
         const balance = current.savings.balance;
@@ -247,6 +257,26 @@ export default function NimiqStaking({
     await run(execute);
   }
 
+  const contribution = savings.contribution_luna ?? 0;
+  const due =
+    !!savings.contribution_date &&
+    savings.contribution_date <= dateInTimezone(timezone);
+  const canContribute =
+    savings.balance !== null &&
+    contribution <= savings.balance - savings.totalEarmarked;
+
+  useEffect(() => {
+    if (!takeFirstContribution()) return;
+    if (
+      network === "testnet" &&
+      due &&
+      contribution > 0 &&
+      canContribute &&
+      !pending
+    )
+      void submit("stake");
+  });
+
   const staker = status?.staker;
   const liquid =
     savings.balance === null
@@ -273,7 +303,10 @@ export default function NimiqStaking({
       : null;
 
   return (
-    <section className="nimiq-contributions" aria-label="Native NIM staking">
+    <section
+      className="nimiq-contributions"
+      aria-label="Scheduled contribution"
+    >
       {network === "testnet" &&
         (pending ? (
           <button
@@ -285,7 +318,8 @@ export default function NimiqStaking({
             Check contribution
           </button>
         ) : (
-          (savings.contribution_luna ?? 0) > 0 && (
+          due &&
+          contribution > 0 && (
             <>
               <button
                 className="site-cta"
@@ -306,16 +340,19 @@ export default function NimiqStaking({
                   : savings.contribution_luna! >
                       savings.balance - savings.totalEarmarked
                     ? "Add testnet NIM in Nimiq Pay to cover this contribution."
-                    : "This contribution is staked from your wallet when you approve in Nimiq Pay."}
+                    : "Approve this contribution in Nimiq Pay."}
               </p>
             </>
           )
         ))}
+      {!due && savings.contribution_date && !pending && (
+        <p>First contribution scheduled for {savings.contribution_date}.</p>
+      )}
       <details>
-        <summary>Staking and withdrawal details</summary>
+        <summary>Withdrawal details</summary>
         <p>
-          Buylist uses your existing validator. For a first testnet stake, the
-          preview uses its configured validator. Pool payouts vary.
+          Contributions are delegated to a validator through Nimiq Pay. You
+          still control your funds. Withdrawals take time and rewards vary.
         </p>
         {!status ? (
           <>
@@ -330,7 +367,9 @@ export default function NimiqStaking({
               disabled={busy}
               onClick={() => void run(refresh)}
             >
-              {pending ? "Check staking confirmation" : "Open staking"}
+              {pending
+                ? "Check staking confirmation"
+                : "Check withdrawal status"}
             </button>
           </>
         ) : (
@@ -444,9 +483,7 @@ export default function NimiqStaking({
               disabled={busy}
               onClick={() => void run(refresh)}
             >
-              {pending
-                ? "Check staking confirmation"
-                : "Refresh staking status"}
+              {pending ? "Check staking confirmation" : "Refresh status"}
             </button>
           </>
         )}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import {
   api,
   loadSession,
@@ -30,6 +30,7 @@ import ContributionPlanner from "./ContributionPlanner";
 import { canMove } from "../shared/planner";
 import { dateInTimezone } from "../shared/automatic";
 export default function Workspace() {
+  const firstContribution = useRef<string | null>(null);
   const [user, setUser] = useState<User | null>(null),
     [config, setConfig] = useState<Config | null>(null),
     [goals, setGoals] = useState<Goal[]>([]),
@@ -375,6 +376,11 @@ export default function Workspace() {
                   closed={!!g.purchased}
                   timezone={g.timezone}
                   scheduleAccepted={!!savedPlan}
+                  takeFirstContribution={() => {
+                    if (firstContribution.current !== g.id) return false;
+                    firstContribution.current = null;
+                    return true;
+                  }}
                 />
               </aside>
               <nav className="detail-tabs" aria-label="Plan sections">
@@ -572,6 +578,12 @@ export default function Workspace() {
                                   startDate,
                                 },
                               );
+                              if (
+                                !savedPlan &&
+                                startDate === dateInTimezone(g.timezone) &&
+                                config?.nimiqEnabled
+                              )
+                                firstContribution.current = g.id;
                               await open(g.id);
                             })
                           }

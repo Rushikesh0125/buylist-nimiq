@@ -38,11 +38,13 @@ export default function NimiqContributions({
   closed,
   timezone,
   scheduleAccepted,
+  takeFirstContribution,
 }: {
   goalId: string;
   closed: boolean;
   timezone: string;
   scheduleAccepted: boolean;
+  takeFirstContribution: () => boolean;
 }) {
   const path = "/api/goals/" + encodeURIComponent(goalId) + "/nimiq";
   const [summary, setSummary] = useState<Summary>();
@@ -118,8 +120,8 @@ export default function NimiqContributions({
   if (!summary) return message ? <p role="status">{message}</p> : null;
 
   return (
-    <section className="nimiq-contributions" aria-label="Personal NIM savings">
-      <h3>Personal NIM savings</h3>
+    <section className="nimiq-contributions" aria-label="Contributions">
+      <h3>Contributions</h3>
       <p>
         Track what you’ve set aside for this goal. Your NIM stays spendable in
         your wallet.
@@ -138,19 +140,20 @@ export default function NimiqContributions({
             savings={savings}
             timezone={timezone}
             refreshSavings={refresh}
+            takeFirstContribution={takeFirstContribution}
           />
         )}
       {savings && (
         <>
           <p>
             <strong>
-              {nim(savings.earmarked_luna)} / {nim(savings.target_luna)} NIM
-              earmarked
+              {nim(savings.earmarked_luna)} / {nim(savings.target_luna)} NIM set
+              aside
             </strong>{" "}
             · {summary.network}
           </p>
           <progress
-            aria-label="NIM earmarked toward goal"
+            aria-label="NIM set aside toward goal"
             value={savings.earmarked_luna}
             max={savings.target_luna}
           />
@@ -176,9 +179,7 @@ export default function NimiqContributions({
         </>
       )}
       {summary.enabled && !closed && !scheduleAccepted && (
-        <p>
-          Save your contribution schedule to set up NIM savings and staking.
-        </p>
+        <p>Save your schedule to set up contributions.</p>
       )}
       {summary.enabled && !closed && scheduleAccepted && (
         <>
@@ -200,7 +201,7 @@ export default function NimiqContributions({
           {savings?.schedule_usd_rate && (
             <>
               <details>
-                <summary>Budget and wallet details</summary>
+                <summary>Plan details</summary>
                 <p>
                   {savings.balance === null
                     ? "Wallet balance unavailable."
@@ -246,7 +247,7 @@ export default function NimiqContributions({
                     />
                   </label>
                   <button type="submit" className="secondary" disabled={busy}>
-                    Update earmark
+                    Update amount set aside
                   </button>
                 </form>
                 <button
