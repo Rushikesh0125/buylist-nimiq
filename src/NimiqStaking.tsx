@@ -144,9 +144,11 @@ export default function NimiqStaking({
           throw new Error(
             "Available: " +
               nim(Math.max(0, balance - totalEarmarked)) +
-              " NIM. This contribution needs " +
+              " NIM in testnet wallet ending " +
+              current.savings.address.slice(-4) +
+              ". This contribution needs " +
               nim(contribution_luna!) +
-              " NIM. Add testnet NIM in Nimiq Pay and try again.",
+              " NIM. Check that this is the address holding your testnet NIM.",
           );
         }
       }

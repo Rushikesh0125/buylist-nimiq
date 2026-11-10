@@ -202,6 +202,9 @@ export default function NimiqContributions({
             <>
               <details>
                 <summary>Plan details</summary>
+                <p className="nimiq-recipient">
+                  Linked wallet: {savings.address}
+                </p>
                 <p>
                   {savings.balance === null
                     ? "Wallet balance unavailable."
