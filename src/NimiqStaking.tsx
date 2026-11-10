@@ -122,20 +122,47 @@ export default function NimiqStaking({
         throw new Error(
           "Check the pending staking transaction before sending another.",
         );
-      const [latest, current] = await Promise.all([
-        load(),
-        api<{ savings: Savings | null }>(path),
-      ]);
+      setMessage("Checking your contribution and wallet balance…");
+      const current = await api<{ savings: Savings | null }>(
+        path,
+        "GET",
+        undefined,
+        AbortSignal.timeout(20_000),
+      );
       if (
         !current.savings ||
         normalize(current.savings.address) !== normalize(savings.address)
       )
         throw new Error("The saved wallet changed. Reopen the staking panel.");
+      if (action === "stake") {
+        const { balance, totalEarmarked, contribution_luna } = current.savings;
+        if (balance === null)
+          throw new Error(
+            "Your wallet balance is temporarily unavailable. Try again shortly.",
+          );
+        if ((contribution_luna ?? 0) > balance - totalEarmarked) {
+          throw new Error(
+            "Available: " +
+              nim(Math.max(0, balance - totalEarmarked)) +
+              " NIM. This contribution needs " +
+              nim(contribution_luna!) +
+              " NIM. Add testnet NIM in Nimiq Pay and try again.",
+          );
+        }
+      }
+      const latest = await api<Staking>(
+        path + "?staking=1",
+        "GET",
+        undefined,
+        AbortSignal.timeout(30_000),
+      );
+      setMessage("Connecting to Nimiq Pay…");
       const wallet = await init({ timeout: 3000 });
       if (getHostNetwork() !== network)
         throw new Error(
           "Switch Nimiq Pay to " + network + " and reopen Buylist.",
         );
+      setMessage("Allow wallet access in Nimiq Pay if prompted.");
       const accounts = await wallet.listAccounts();
       if (
         !accounts.some(
@@ -324,12 +351,7 @@ export default function NimiqStaking({
               <button
                 className="site-cta"
                 type="button"
-                disabled={
-                  busy ||
-                  savings.balance === null ||
-                  (savings.contribution_luna ?? 0) >
-                    savings.balance - savings.totalEarmarked
-                }
+                disabled={busy}
                 onClick={() => void submit("stake")}
               >
                 Contribute {nim(savings.contribution_luna!)} NIM
