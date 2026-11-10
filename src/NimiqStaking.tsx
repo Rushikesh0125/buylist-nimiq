@@ -26,6 +26,7 @@ type Savings = {
   earmarked_luna: number;
   purchase_date: string | null;
   final_contribution_luna: number;
+  contribution_luna?: number;
   balance: number | null;
   totalEarmarked: number;
 };
@@ -59,14 +60,12 @@ export default function NimiqStaking({
   refreshSavings: () => Promise<unknown>;
 }) {
   const [status, setStatus] = useState<Staking>();
-  const [amount, setAmount] = useState("");
-  const [validator, setValidator] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [pending, setPending] = useState("");
+  const key = "buylist.stake." + network + "." + normalize(savings.address);
+  const [pending, setPending] = useState(() => localStorage.getItem(key) ?? "");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
-  const key = "buylist.stake." + network + "." + normalize(savings.address);
 
   const load = () => api<Staking>(path + "?staking=1");
   async function refresh() {
@@ -163,7 +162,9 @@ export default function NimiqStaking({
       const staker = latest.staker;
       let request: () => Promise<string>;
       if (action === "stake") {
-        const value = amountLuna(amount);
+        const value = current.savings.contribution_luna ?? 0;
+        if (!value)
+          throw new Error("There is no scheduled contribution to stake.");
         const balance = current.savings.balance;
         if (
           balance === null ||
@@ -190,8 +191,11 @@ export default function NimiqStaking({
                 nim(latest.minimumStake) +
                 " NIM.",
             );
+          const validator = "NQ57 2F6C X3GB Y9B7 04U5 2BVA 4BVC M2T0 ELRL";
           if (!latest.validators.includes(validator))
-            throw new Error("Choose an active validator.");
+            throw new Error(
+              "The preview validator is unavailable. Your NIM has not moved.",
+            );
           request = () =>
             wallet.sendNewStakerTransaction({ value, delegation: validator });
         }
@@ -270,177 +274,183 @@ export default function NimiqStaking({
 
   return (
     <section className="nimiq-contributions" aria-label="Native NIM staking">
-      <h4>Stake NIM</h4>
-      <p>
-        Stake through Nimiq Pay. Your wallet controls the position. Reward
-        payouts depend on the pool and are separate from this goal’s spendable
-        balance.
-      </p>
-      {!status ? (
-        <>
-          {pending && (
-            <p className="nimiq-recipient">Submitted transaction: {pending}</p>
-          )}
+      {network === "testnet" &&
+        (pending ? (
           <button
+            className="site-cta"
             type="button"
-            className="secondary"
             disabled={busy}
             onClick={() => void run(refresh)}
           >
-            {pending ? "Check staking confirmation" : "Open staking"}
+            Check contribution
           </button>
-        </>
-      ) : (
-        <>
-          {staker && (
-            <p>
-              Active: {nim(staker.balance)} NIM · Inactive:{" "}
-              {nim(staker.inactiveBalance)} NIM · Retired:{" "}
-              {nim(staker.retiredBalance)} NIM
-            </p>
-          )}
-          {staker?.delegation && (
-            <p className="nimiq-recipient">Validator: {staker.delegation}</p>
-          )}
-          {plan && (plan.amount > 0 || plan.remainingGap > 0) && (
-            <p>
-              {plan.date <= dateInTimezone(timezone)
-                ? "Unstake reminder: "
-                : "Suggested unstake date: "}
-              {plan.date}.{" "}
-              {plan.amount > 0 &&
-                "Consider deactivating " + nim(plan.amount) + " NIM. "}
-              {plan.remainingGap > 0 &&
-                nim(plan.remainingGap) + " NIM would still be needed. "}
-              The estimate allows {unstakeBufferDays} days; release timing can
-              vary.
-            </p>
-          )}
-          {staker &&
-            staker.inactiveBalance > 0 &&
-            status.releaseBlock !== null &&
-            status.height < status.releaseBlock && (
+        ) : (
+          (savings.contribution_luna ?? 0) > 0 && (
+            <>
+              <button
+                className="site-cta"
+                type="button"
+                disabled={
+                  busy ||
+                  savings.balance === null ||
+                  (savings.contribution_luna ?? 0) >
+                    savings.balance - savings.totalEarmarked
+                }
+                onClick={() => void submit("stake")}
+              >
+                Contribute {nim(savings.contribution_luna!)} NIM
+              </button>
               <p>
-                Inactive NIM can be retired at block{" "}
-                {status.releaseBlock.toLocaleString()} or later. Current block:{" "}
-                {status.height.toLocaleString()}.
+                {savings.balance === null
+                  ? "Refresh your wallet balance to contribute."
+                  : savings.contribution_luna! >
+                      savings.balance - savings.totalEarmarked
+                    ? "Add testnet NIM in Nimiq Pay to cover this contribution."
+                    : "This contribution is staked from your wallet when you approve in Nimiq Pay."}
+              </p>
+            </>
+          )
+        ))}
+      <details>
+        <summary>Staking and withdrawal details</summary>
+        <p>
+          Buylist uses your existing validator. For a first testnet stake, the
+          preview uses its configured validator. Pool payouts vary.
+        </p>
+        {!status ? (
+          <>
+            {pending && (
+              <p className="nimiq-recipient">
+                Submitted transaction: {pending}
               </p>
             )}
-          {network !== "testnet" ? (
-            <p>Staking actions are available on Nimiq Testnet for now.</p>
-          ) : pending ? (
-            <p className="nimiq-recipient">Submitted transaction: {pending}</p>
-          ) : (
-            <>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void submit("stake");
-                }}
-              >
-                {!staker && (
-                  <label>
-                    Active validator
-                    <select
-                      value={validator}
-                      onChange={(event) => setValidator(event.target.value)}
-                      required
-                      disabled={busy}
-                    >
-                      <option value="">Select a validator</option>
-                      {status.validators.map((address) => (
-                        <option key={address} value={address}>
-                          {address}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy}
+              onClick={() => void run(refresh)}
+            >
+              {pending ? "Check staking confirmation" : "Open staking"}
+            </button>
+          </>
+        ) : (
+          <>
+            {staker && (
+              <p>
+                Active: {nim(staker.balance)} NIM · Inactive:{" "}
+                {nim(staker.inactiveBalance)} NIM · Retired:{" "}
+                {nim(staker.retiredBalance)} NIM
+              </p>
+            )}
+            {staker?.delegation && (
+              <p className="nimiq-recipient">Validator: {staker.delegation}</p>
+            )}
+            {plan && (plan.amount > 0 || plan.remainingGap > 0) && (
+              <p>
+                {plan.date <= dateInTimezone(timezone)
+                  ? "Unstake reminder: "
+                  : "Suggested unstake date: "}
+                {plan.date}.{" "}
+                {plan.amount > 0 &&
+                  "Consider deactivating " + nim(plan.amount) + " NIM. "}
+                {plan.remainingGap > 0 &&
+                  nim(plan.remainingGap) + " NIM would still be needed. "}
+                The estimate allows {unstakeBufferDays} days; release timing can
+                vary.
+              </p>
+            )}
+            {staker &&
+              staker.inactiveBalance > 0 &&
+              status.releaseBlock !== null &&
+              status.height < status.releaseBlock && (
+                <p>
+                  Inactive NIM can be retired at block{" "}
+                  {status.releaseBlock.toLocaleString()} or later. Current
+                  block: {status.height.toLocaleString()}.
+                </p>
+              )}
+            {network !== "testnet" ? (
+              <p>Staking actions are available on Nimiq Testnet for now.</p>
+            ) : pending ? (
+              <p className="nimiq-recipient">
+                Submitted transaction: {pending}
+              </p>
+            ) : (
+              <>
+                {staker && staker.balance > 0 && !staker.inactiveBalance && (
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void submit("deactivate");
+                    }}
+                  >
+                    <label>
+                      NIM to deactivate
+                      <input
+                        value={withdrawAmount}
+                        onChange={(event) =>
+                          setWithdrawAmount(event.target.value)
+                        }
+                        inputMode="decimal"
+                        required
+                        disabled={busy}
+                      />
+                    </label>
+                    {plan && plan.amount > 0 && (
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busy}
+                        onClick={() =>
+                          setWithdrawAmount(String(plan.amount / 100_000))
+                        }
+                      >
+                        Use suggested amount
+                      </button>
+                    )}
+                    <button type="submit" className="site-cta" disabled={busy}>
+                      Start unstaking
+                    </button>
+                  </form>
                 )}
-                <label>
-                  Amount to stake (NIM)
-                  <input
-                    value={amount}
-                    onChange={(event) => setAmount(event.target.value)}
-                    inputMode="decimal"
-                    required
-                    disabled={busy}
-                  />
-                </label>
-                <button className="site-cta" type="submit" disabled={busy}>
-                  Approve stake in Nimiq Pay
-                </button>
-              </form>
-              {staker && staker.balance > 0 && !staker.inactiveBalance && (
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void submit("deactivate");
-                  }}
-                >
-                  <label>
-                    NIM to deactivate
-                    <input
-                      value={withdrawAmount}
-                      onChange={(event) =>
-                        setWithdrawAmount(event.target.value)
-                      }
-                      inputMode="decimal"
-                      required
-                      disabled={busy}
-                    />
-                  </label>
-                  {plan && plan.amount > 0 && (
+                {staker &&
+                  staker.inactiveBalance > 0 &&
+                  status.releaseBlock !== null &&
+                  status.height >= status.releaseBlock && (
                     <button
                       type="button"
                       className="secondary"
                       disabled={busy}
-                      onClick={() =>
-                        setWithdrawAmount(String(plan.amount / 100_000))
-                      }
+                      onClick={() => void submit("retire")}
                     >
-                      Use suggested amount
+                      Retire inactive NIM
                     </button>
                   )}
-                  <button type="submit" className="site-cta" disabled={busy}>
-                    Start unstaking
-                  </button>
-                </form>
-              )}
-              {staker &&
-                staker.inactiveBalance > 0 &&
-                status.releaseBlock !== null &&
-                status.height >= status.releaseBlock && (
+                {staker && staker.retiredBalance > 0 && (
                   <button
                     type="button"
                     className="secondary"
                     disabled={busy}
-                    onClick={() => void submit("retire")}
+                    onClick={() => void submit("withdraw")}
                   >
-                    Retire inactive NIM
+                    Withdraw retired NIM
                   </button>
                 )}
-              {staker && staker.retiredBalance > 0 && (
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={busy}
-                  onClick={() => void submit("withdraw")}
-                >
-                  Withdraw retired NIM
-                </button>
-              )}
-            </>
-          )}
-          <button
-            type="button"
-            className="secondary"
-            disabled={busy}
-            onClick={() => void run(refresh)}
-          >
-            {pending ? "Check staking confirmation" : "Refresh staking status"}
-          </button>
-        </>
-      )}
+              </>
+            )}
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy}
+              onClick={() => void run(refresh)}
+            >
+              {pending
+                ? "Check staking confirmation"
+                : "Refresh staking status"}
+            </button>
+          </>
+        )}
+      </details>
       {message && <p role="status">{message}</p>}
     </section>
   );

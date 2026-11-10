@@ -484,6 +484,7 @@ test("links the signed-in wallet only after a schedule is accepted and follows i
           target_luna: number;
           purchase_date: string;
           final_contribution_luna: number;
+          contribution_luna: number;
         };
       }
     ).savings;
@@ -492,6 +493,7 @@ test("links the signed-in wallet only after a schedule is accepted and follows i
   assert.equal(linked.target_luna, 50_000_000);
   assert.equal(linked.purchase_date, "2026-12-03");
   assert.equal(linked.final_contribution_luna, 5_000_000);
+  assert.equal(linked.contribution_luna, 15_000_000);
   const event = await db
     .prepare(
       "SELECT id,version FROM schedule_events WHERE goal_id=? ORDER BY date DESC LIMIT 1",

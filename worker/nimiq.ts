@@ -270,7 +270,12 @@ async function scheduleBasis(env: Env, goal: GoalRow, userId: string) {
       goal.target_cents - (await balance(env, goal.id)),
     );
     if (Math.ceil(cents / plan.amount_cents) > 600) {
-      return { cents, finalDate: null, finalCents: 0 };
+      return {
+        cents,
+        finalDate: null,
+        finalCents: 0,
+        contributionCents: Math.min(cents, plan.amount_cents),
+      };
     }
     const final = forecast(
       cents,
@@ -282,6 +287,7 @@ async function scheduleBasis(env: Env, goal: GoalRow, userId: string) {
       cents,
       finalDate: final?.date ?? null,
       finalCents: final?.amountCents ?? 0,
+      contributionCents: Math.min(cents, plan.amount_cents),
     };
   }
   const commitment = await env.DB.prepare(
@@ -302,6 +308,7 @@ async function scheduleBasis(env: Env, goal: GoalRow, userId: string) {
     cents: rows.reduce((sum, row) => sum + row.cents, 0),
     finalDate: final?.date ?? null,
     finalCents: final?.cents ?? 0,
+    contributionCents: rows[0]?.cents ?? 0,
   };
 }
 
@@ -425,6 +432,10 @@ export async function nimiqRoutes(request: Request, env: Env, path: string) {
               target_luna: Math.max(
                 1,
                 toLuna(basis.cents, savings.schedule_usd_rate),
+              ),
+              contribution_luna: toLuna(
+                basis.contributionCents,
+                savings.schedule_usd_rate,
               ),
               purchase_date: basis.finalDate,
               final_contribution_luna: toLuna(

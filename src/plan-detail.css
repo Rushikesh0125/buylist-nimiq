@@ -710,3 +710,12 @@
     grid-column: auto;
   }
 }
+
+.nimiq-contributions details > summary {
+  cursor: pointer;
+  padding-block: 12px;
+  color: #dddde4;
+}
+.nimiq-contributions > .site-cta + p {
+  margin: 8px 0 4px;
+}

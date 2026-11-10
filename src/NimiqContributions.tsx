@@ -127,6 +127,19 @@ export default function NimiqContributions({
       {!summary.enabled && (
         <p>Wallet balance tracking is unavailable right now.</p>
       )}
+      {summary.enabled &&
+        summary.network &&
+        savings?.schedule_usd_rate &&
+        scheduleAccepted && (
+          <NimiqStaking
+            key={summary.network + ":" + savings.address}
+            path={path}
+            network={summary.network}
+            savings={savings}
+            timezone={timezone}
+            refreshSavings={refresh}
+          />
+        )}
       {savings && (
         <>
           <p>
@@ -141,11 +154,6 @@ export default function NimiqContributions({
             value={savings.earmarked_luna}
             max={savings.target_luna}
           />
-          <p>
-            {savings.balance === null
-              ? "Wallet balance unavailable."
-              : "Wallet balance: " + nim(savings.balance) + " NIM"}
-          </p>
           {underfunded && (
             <p role="status">
               Your wallet balance is lower than the total earmarked across your
@@ -165,14 +173,6 @@ export default function NimiqContributions({
               set aside.
             </p>
           )}
-          <button
-            type="button"
-            className="secondary"
-            disabled={busy}
-            onClick={() => void run(refresh)}
-          >
-            Refresh wallet balance
-          </button>
         </>
       )}
       {summary.enabled && !closed && !scheduleAccepted && (
@@ -199,65 +199,69 @@ export default function NimiqContributions({
           )}
           {savings?.schedule_usd_rate && (
             <>
-              <p>
-                Estimated from your schedule at $
-                {savings.schedule_usd_rate.toPrecision(5)} per NIM
-                {summary.network === "testnet"
-                  ? " · testnet planning only"
-                  : ""}
-                .
-              </p>
-              {savings.purchase_date && (
+              <details>
+                <summary>Budget and wallet details</summary>
                 <p>
-                  Final scheduled contribution:{" "}
-                  {nim(savings.final_contribution_luna)} NIM on{" "}
-                  {savings.purchase_date}.
+                  {savings.balance === null
+                    ? "Wallet balance unavailable."
+                    : "Wallet balance: " + nim(savings.balance) + " NIM"}
                 </p>
-              )}
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void run(async () => {
-                    await api(path, "PATCH", {
-                      fromSchedule: true,
-                      earmarkedLuna: toLuna(earmarked),
+
+                <p>
+                  Estimated from your schedule at $
+                  {savings.schedule_usd_rate.toPrecision(5)} per NIM
+                  {summary.network === "testnet"
+                    ? " · testnet planning only"
+                    : ""}
+                  .
+                </p>
+                {savings.purchase_date && (
+                  <p>
+                    Final scheduled contribution:{" "}
+                    {nim(savings.final_contribution_luna)} NIM on{" "}
+                    {savings.purchase_date}.
+                  </p>
+                )}
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void run(async () => {
+                      await api(path, "PATCH", {
+                        fromSchedule: true,
+                        earmarkedLuna: toLuna(earmarked),
+                      });
+                      await refresh();
+                      setMessage("Earmark updated. No NIM was moved.");
                     });
-                    await refresh();
-                    setMessage("Earmark updated. No NIM was moved.");
-                  });
-                }}
-              >
-                <label>
-                  Amount already set aside (NIM)
-                  <input
-                    value={earmarked}
-                    onChange={(event) => setEarmarked(event.target.value)}
-                    inputMode="decimal"
-                    disabled={busy}
-                    required
-                  />
-                </label>
-                <button type="submit" className="secondary" disabled={busy}>
-                  Update earmark
+                  }}
+                >
+                  <label>
+                    Amount already set aside (NIM)
+                    <input
+                      value={earmarked}
+                      onChange={(event) => setEarmarked(event.target.value)}
+                      inputMode="decimal"
+                      disabled={busy}
+                      required
+                    />
+                  </label>
+                  <button type="submit" className="secondary" disabled={busy}>
+                    Update earmark
+                  </button>
+                </form>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={busy}
+                  onClick={() => void run(refresh)}
+                >
+                  Refresh wallet balance
                 </button>
-              </form>
+              </details>
             </>
           )}
         </>
       )}
-      {summary.enabled &&
-        summary.network &&
-        savings?.schedule_usd_rate &&
-        scheduleAccepted && (
-          <NimiqStaking
-            key={summary.network + ":" + savings.address}
-            path={path}
-            network={summary.network}
-            savings={savings}
-            timezone={timezone}
-            refreshSavings={refresh}
-          />
-        )}
       {summary.config && (
         <>
           <h4>Previous NIM transfers</h4>
