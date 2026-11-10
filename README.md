@@ -1,6 +1,6 @@
 # Buylist for Nimiq Pay
 
-Track a personal NIM savings target alongside a purchase plan. Sign in with Nimiq Pay, open any goal, connect your wallet, and save how much of your wallet balance you want to earmark. Group members track their own savings. An optional check-in date shows a reminder inside the goal when due.
+Track a personal NIM savings target alongside a purchase plan. Sign in with Nimiq Pay, save the contribution schedule, and then record how much of your wallet balance you want to earmark. Group members track their own savings. Buylist derives the NIM target and timing from the saved schedule using a market quote.
 
 NIM stays in the wallet. The Worker verifies wallet balances on the configured Nimiq network, and Buylist records targets and earmarks separately from USD budgets and historical NIM transfers. Earmarks do not lock funds or create payments.
 
@@ -18,6 +18,6 @@ See the [Nimiq Mini Apps documentation](https://nimiq.dev/mini-apps).
 
 ## Native staking
 
-Save a personal NIM plan and open **Stake NIM** in the goal. The testnet build reads the wallet position from the native RPC. Select an active validator for a first stake, or add NIM to the existing position. Approve each transaction in Nimiq Pay and check confirmation. The plan keeps liquid earmarks separate from staking.
+Save your contribution schedule and open **Stake NIM** in the goal. The testnet build reads the wallet position from the native RPC. Select an active validator for a first stake, or add NIM to the existing position. Approve each transaction in Nimiq Pay and check confirmation. The plan keeps liquid earmarks separate from staking.
 
-Set a final contribution date and expected NIM amount to see a suggested unstake date and amount. The estimate uses a five-day planning buffer. Chain reporting and jail rules determine when inactive stake can be retired. Withdraw retired stake through Nimiq Pay, then update the liquid earmark once the balance returns. Pool payouts vary and are not automatically attributed to goals.
+The saved schedule supplies the final contribution date and amount for the unstake suggestion. The estimate uses a five-day planning buffer. Chain reporting and jail rules determine when inactive stake can be retired. Withdraw retired stake through Nimiq Pay, then update the liquid earmark once the balance returns. Pool payouts vary and are not automatically attributed to goals.

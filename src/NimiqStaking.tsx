@@ -6,6 +6,7 @@ import {
   unstakeBufferDays,
 } from "../shared/nimiq-staking";
 import { api } from "./api";
+import { addressFromPublicKey } from "../shared/nimiq-address";
 
 type Staking = {
   staker: {
@@ -135,12 +136,29 @@ export default function NimiqStaking({
         );
       const accounts = await wallet.listAccounts();
       if (
-        accounts.length !== 1 ||
-        normalize(accounts[0]) !== normalize(savings.address)
-      )
+        !accounts.some(
+          (account) => normalize(account) === normalize(savings.address),
+        )
+      ) {
         throw new Error(
-          "Open this plan with the same single Nimiq Pay account you used to set it up.",
+          "Open this plan with the Nimiq Pay wallet you signed in with.",
         );
+      }
+      if (accounts.length > 1) {
+        setMessage("Confirm the active wallet in Nimiq Pay.");
+        const proof = await wallet.sign(
+          "Confirm the active wallet for a Buylist staking action at " +
+            location.origin,
+        );
+        if (
+          normalize(addressFromPublicKey(proof.publicKey)) !==
+          normalize(savings.address)
+        ) {
+          throw new Error(
+            "Select the wallet you signed in with before staking.",
+          );
+        }
+      }
 
       const staker = latest.staker;
       let request: () => Promise<string>;

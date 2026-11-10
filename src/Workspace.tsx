@@ -358,10 +358,23 @@ export default function Workspace() {
                   </button>
                 )}
                 <NimiqContributions
-                  key={g.id}
+                  key={
+                    g.id +
+                    ":" +
+                    (savedPlan?.version ?? 0) +
+                    ":" +
+                    (schedule?.events
+                      .filter(
+                        (event) =>
+                          event.user_id === user.id &&
+                          event.state === "planned",
+                      )
+                      .at(-1)?.date ?? "")
+                  }
                   goalId={g.id}
                   closed={!!g.purchased}
                   timezone={g.timezone}
+                  scheduleAccepted={!!savedPlan}
                 />
               </aside>
               <nav className="detail-tabs" aria-label="Plan sections">

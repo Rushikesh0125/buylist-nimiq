@@ -1,5 +1,6 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
+import { addressFromPublicKey } from "../shared/nimiq-address.ts";
 import { purchaseUnstakePlan } from "../shared/nimiq-staking.ts";
 import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
@@ -50,6 +51,14 @@ before(async () => {
         NIMIQ_NETWORK: "mainnet",
       },
       outboundService: async (request) => {
+        if (new URL(request.url).hostname === "api.coinpaprika.com") {
+          assert.equal(new URL(request.url).pathname, "/v1/tickers/nim-nimiq");
+          return Response.json({
+            id: "nim-nimiq",
+            last_updated: new Date().toISOString(),
+            quotes: { USD: { price: 0.2 } },
+          });
+        }
         const { method, params } = (await request.json()) as {
           method: string;
           params: string[];
@@ -416,4 +425,89 @@ test("purchase forecast subtracts liquid and pending withdrawal funds and leaves
     amount: 0,
     remainingGap: 0,
   });
+});
+
+test("links the signed-in wallet only after a schedule is accepted and follows its final event", async () => {
+  const owner = "__Host-buylist=owner";
+  const expected = "NQ73 H7MG SSLA D4ES UB6H BT83 D69H RQ59 97NA";
+  assert.equal(addressFromPublicKey("00".repeat(32)), expected);
+  await db
+    .prepare("UPDATE users SET google_sub=? WHERE id='owner'")
+    .bind("nimiq:" + "00".repeat(32))
+    .run();
+  const created = await request(
+    "/api/goals",
+    "POST",
+    {
+      name: "Schedule-linked savings",
+      targetCents: 10000,
+      mode: "solo",
+      timezone: "UTC",
+    },
+    owner,
+  );
+  assert.equal(created.status, 201);
+  const { id } = (await created.json()) as { id: string };
+  const plan = "/api/goals/" + id;
+  const link = () =>
+    request(
+      plan + "/nimiq",
+      "PATCH",
+      { fromSchedule: true, address: recipient },
+      owner,
+    );
+  assert.equal((await link()).status, 409);
+  assert.equal(
+    (
+      await request(
+        plan + "/schedule",
+        "PUT",
+        {
+          version: 0,
+          amountCents: 3000,
+          frequency: "weekly",
+          startDate: "2026-11-12",
+        },
+        owner,
+      )
+    ).status,
+    200,
+  );
+  assert.equal((await link()).status, 200);
+  const read = async () =>
+    (
+      (await (
+        await request(plan + "/nimiq", "GET", undefined, owner)
+      ).json()) as {
+        savings: {
+          address: string;
+          target_luna: number;
+          purchase_date: string;
+          final_contribution_luna: number;
+        };
+      }
+    ).savings;
+  const linked = await read();
+  assert.equal(linked.address, expected);
+  assert.equal(linked.target_luna, 50_000_000);
+  assert.equal(linked.purchase_date, "2026-12-03");
+  assert.equal(linked.final_contribution_luna, 5_000_000);
+  const event = await db
+    .prepare(
+      "SELECT id,version FROM schedule_events WHERE goal_id=? ORDER BY date DESC LIMIT 1",
+    )
+    .bind(id)
+    .first<{ id: string; version: number }>();
+  assert.equal(
+    (
+      await request(
+        plan + "/schedule/events/" + event!.id,
+        "PATCH",
+        { version: event!.version, date: "2026-12-06" },
+        owner,
+      )
+    ).status,
+    200,
+  );
+  assert.equal((await read()).purchase_date, "2026-12-06");
 });

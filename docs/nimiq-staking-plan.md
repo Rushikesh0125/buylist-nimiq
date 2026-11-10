@@ -6,3 +6,9 @@
 - Work backward from the final contribution date using a five-day planning buffer. Suggest at most the wallet's active stake, using the target minus liquid earmarks, final contribution and stake already in the withdrawal pipeline. Respect the minimum remaining position. Display actual release eligibility from reporting and jail rules before offering retirement.
 - Save a pending transaction hash in the browser for recovery. Check successful execution and finality before clearing it. Never send automatically. Reward payout terms vary by pool. Wallet-level staking balances or transfers cannot by themselves prove goal-specific rewards, so this iteration does not credit rewards automatically.
 - Test with real native testnet RPC reads, fixture-based staking action checks, and native wallet approval on a funded device. Do not claim end-to-end staking until transactions have been confirmed on testnet.
+
+## Schedule-driven setup
+
+- Require an accepted commitment or a saved flexible personal plan before linking a staking plan. Use the saved schedule's remaining USD amount and final scheduled contribution. For flexible plans the date remains a projection.
+- Convert USD using a fresh market quote on first setup, then retain the quote for the plan. The quote is illustrative on testnet. Schedule edits update the date and final contribution without a second form. Retain the wallet and liquid earmark.
+- The wallet public key verified at sign-in supplies the address. Setup never stakes or transfers funds. Existing earmarks in a different wallet remain readable.

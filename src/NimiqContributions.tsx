@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { getHostNetwork, init } from "@nimiq/mini-app-sdk";
 import { dateInTimezone } from "../shared/automatic";
 import { api } from "./api";
 import NimiqStaking from "./NimiqStaking";
@@ -11,6 +10,7 @@ type Savings = {
   review_date: string | null;
   purchase_date: string | null;
   final_contribution_luna: number;
+  schedule_usd_rate: number | null;
   balance: number | null;
   totalEarmarked: number;
 };
@@ -37,20 +37,16 @@ export default function NimiqContributions({
   goalId,
   closed,
   timezone,
+  scheduleAccepted,
 }: {
   goalId: string;
   closed: boolean;
   timezone: string;
+  scheduleAccepted: boolean;
 }) {
   const path = "/api/goals/" + encodeURIComponent(goalId) + "/nimiq";
   const [summary, setSummary] = useState<Summary>();
-  const [accounts, setAccounts] = useState<string[]>([]);
-  const [address, setAddress] = useState("");
-  const [target, setTarget] = useState("");
   const [earmarked, setEarmarked] = useState("0");
-  const [reviewDate, setReviewDate] = useState("");
-  const [purchaseDate, setPurchaseDate] = useState("");
-  const [finalContribution, setFinalContribution] = useState("0");
   const [hash, setHash] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -59,25 +55,29 @@ export default function NimiqContributions({
   useEffect(() => {
     const controller = new AbortController();
     api<Summary>(path, "GET", undefined, controller.signal)
-      .then((value) => {
+      .then(async (value) => {
         setSummary(value);
+        if (
+          scheduleAccepted &&
+          !closed &&
+          value.enabled &&
+          !value.savings?.schedule_usd_rate
+        ) {
+          await api(path, "PATCH", { fromSchedule: true }, controller.signal);
+          value = await api<Summary>(path, "GET", undefined, controller.signal);
+          if (controller.signal.aborted) return;
+          setSummary(value);
+        }
         setHash(value.pending?.tx_hash ?? "");
         if (value.savings) {
-          setAddress(value.savings.address);
-          setTarget(String(value.savings.target_luna / 100_000));
           setEarmarked(String(value.savings.earmarked_luna / 100_000));
-          setReviewDate(value.savings.review_date ?? "");
-          setPurchaseDate(value.savings.purchase_date ?? "");
-          setFinalContribution(
-            String(value.savings.final_contribution_luna / 100_000),
-          );
         }
       })
       .catch((error: Error) => {
         if (!controller.signal.aborted) setMessage(error.message);
       });
     return () => controller.abort();
-  }, [path]);
+  }, [path, scheduleAccepted, closed]);
 
   const refresh = async () => setSummary(await api<Summary>(path));
   async function run(operation: () => Promise<void>) {
@@ -97,6 +97,12 @@ export default function NimiqContributions({
       setBusy(false);
       running.current = false;
     }
+  }
+
+  async function linkSchedule() {
+    await api(path, "PATCH", { fromSchedule: true });
+    await refresh();
+    setMessage("NIM plan created from your schedule. No NIM was moved.");
   }
 
   const savings = summary?.savings;
@@ -169,142 +175,89 @@ export default function NimiqContributions({
           </button>
         </>
       )}
-      {summary.enabled && !closed && (
+      {summary.enabled && !closed && !scheduleAccepted && (
+        <p>
+          Save your contribution schedule to set up NIM savings and staking.
+        </p>
+      )}
+      {summary.enabled && !closed && scheduleAccepted && (
         <>
-          <button
-            type="button"
-            className="secondary"
-            disabled={busy}
-            onClick={() =>
-              void run(async () => {
-                const wallet = await init({ timeout: 3000 }).catch(() => {
-                  throw new Error(
-                    "Open Buylist inside Nimiq Pay to connect your wallet.",
-                  );
-                });
-                if (getHostNetwork() !== summary.network)
-                  throw new Error(
-                    "Switch Nimiq Pay to " +
-                      summary.network +
-                      " and reopen Buylist.",
-                  );
-                const shared = await wallet.listAccounts();
-                if (!shared.length)
-                  throw new Error("Nimiq Pay did not share a wallet address.");
-                setAccounts(shared);
-                setAddress(shared.includes(address) ? address : shared[0]);
-              })
-            }
-          >
-            {address ? "Choose wallet" : "Connect Nimiq Pay wallet"}
-          </button>
-          {address && (
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                void run(async () => {
-                  await api(path, "PATCH", {
-                    address,
-                    targetLuna: toLuna(target),
-                    earmarkedLuna: toLuna(earmarked),
-                    reviewDate: reviewDate || null,
-                    purchaseDate: purchaseDate || null,
-                    finalContributionLuna: purchaseDate
-                      ? toLuna(finalContribution)
-                      : 0,
-                  });
-                  await refresh();
-                  setMessage("Savings plan updated. No NIM was moved.");
-                });
-              }}
-            >
-              {accounts.length > 1 ? (
-                <label>
-                  Wallet address
-                  <select
-                    value={address}
-                    onChange={(event) => setAddress(event.target.value)}
-                    disabled={busy}
-                  >
-                    {accounts.map((account) => (
-                      <option key={account} value={account}>
-                        {account}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : (
-                <p className="nimiq-recipient">{address}</p>
+          {!savings?.schedule_usd_rate && (
+            <>
+              <p>Your NIM target and timing come from your saved schedule.</p>
+              {message && (
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={busy}
+                  onClick={() => void run(linkSchedule)}
+                >
+                  Retry schedule setup
+                </button>
               )}
-              <label>
-                Savings target (NIM)
-                <input
-                  value={target}
-                  onChange={(event) => setTarget(event.target.value)}
-                  inputMode="decimal"
-                  disabled={busy}
-                  required
-                />
-              </label>
-              <label>
-                Amount set aside (NIM)
-                <input
-                  value={earmarked}
-                  onChange={(event) => setEarmarked(event.target.value)}
-                  inputMode="decimal"
-                  disabled={busy}
-                  required
-                />
-              </label>
-              <label>
-                Check-in date (optional)
-                <input
-                  type="date"
-                  value={reviewDate}
-                  onChange={(event) => setReviewDate(event.target.value)}
-                  disabled={busy}
-                />
-              </label>
-              <label>
-                Final contribution date (optional)
-                <input
-                  type="date"
-                  value={purchaseDate}
-                  onChange={(event) => setPurchaseDate(event.target.value)}
-                  disabled={busy}
-                />
-              </label>
-              {purchaseDate && (
+            </>
+          )}
+          {savings?.schedule_usd_rate && (
+            <>
+              <p>
+                Estimated from your schedule at $
+                {savings.schedule_usd_rate.toPrecision(5)} per NIM
+                {summary.network === "testnet"
+                  ? " · testnet planning only"
+                  : ""}
+                .
+              </p>
+              {savings.purchase_date && (
+                <p>
+                  Final scheduled contribution:{" "}
+                  {nim(savings.final_contribution_luna)} NIM on{" "}
+                  {savings.purchase_date}.
+                </p>
+              )}
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void run(async () => {
+                    await api(path, "PATCH", {
+                      fromSchedule: true,
+                      earmarkedLuna: toLuna(earmarked),
+                    });
+                    await refresh();
+                    setMessage("Earmark updated. No NIM was moved.");
+                  });
+                }}
+              >
                 <label>
-                  Expected final contribution (NIM)
+                  Amount already set aside (NIM)
                   <input
-                    value={finalContribution}
-                    onChange={(event) =>
-                      setFinalContribution(event.target.value)
-                    }
+                    value={earmarked}
+                    onChange={(event) => setEarmarked(event.target.value)}
                     inputMode="decimal"
-                    required
                     disabled={busy}
+                    required
                   />
                 </label>
-              )}
-              <button type="submit" className="site-cta" disabled={busy}>
-                Save NIM plan
-              </button>
-            </form>
+                <button type="submit" className="secondary" disabled={busy}>
+                  Update earmark
+                </button>
+              </form>
+            </>
           )}
         </>
       )}
-      {summary.enabled && summary.network && savings && (
-        <NimiqStaking
-          key={summary.network + ":" + savings.address}
-          path={path}
-          network={summary.network}
-          savings={savings}
-          timezone={timezone}
-          refreshSavings={refresh}
-        />
-      )}
+      {summary.enabled &&
+        summary.network &&
+        savings?.schedule_usd_rate &&
+        scheduleAccepted && (
+          <NimiqStaking
+            key={summary.network + ":" + savings.address}
+            path={path}
+            network={summary.network}
+            savings={savings}
+            timezone={timezone}
+            refreshSavings={refresh}
+          />
+        )}
       {summary.config && (
         <>
           <h4>Previous NIM transfers</h4>

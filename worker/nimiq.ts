@@ -1,6 +1,16 @@
 import { z } from "zod";
-import { validDate } from "../shared/domain";
-import { insist, json, jsonBody, member, now, session } from "./http";
+import { addressFromPublicKey } from "../shared/nimiq-address";
+import { forecast, validDate, type Frequency } from "../shared/domain";
+import {
+  balance,
+  insist,
+  json,
+  jsonBody,
+  member,
+  now,
+  session,
+  type GoalRow,
+} from "./http";
 
 const address = z
   .string()
@@ -43,6 +53,7 @@ type PersonalSavings = {
   review_date: string | null;
   purchase_date: string | null;
   final_contribution_luna: number;
+  schedule_usd_rate: number | null;
 };
 type Network = "mainnet" | "testnet";
 type Config = { recipient: string; network: Network; target_luna: number };
@@ -242,6 +253,97 @@ async function stakingStatus(
   });
 }
 
+async function scheduleBasis(env: Env, goal: GoalRow, userId: string) {
+  if (goal.mode === "flexible") {
+    const plan = await env.DB.prepare(
+      "SELECT amount_cents,frequency,start_date FROM personal_plans WHERE goal_id=? AND user_id=?",
+    )
+      .bind(goal.id, userId)
+      .first<{
+        amount_cents: number;
+        frequency: Frequency;
+        start_date: string;
+      }>();
+    if (!plan) return null;
+    const cents = Math.max(
+      0,
+      goal.target_cents - (await balance(env, goal.id)),
+    );
+    if (Math.ceil(cents / plan.amount_cents) > 600) {
+      return { cents, finalDate: null, finalCents: 0 };
+    }
+    const final = forecast(
+      cents,
+      plan.amount_cents,
+      plan.start_date,
+      plan.frequency,
+    ).events.at(-1);
+    return {
+      cents,
+      finalDate: final?.date ?? null,
+      finalCents: final?.amountCents ?? 0,
+    };
+  }
+  const commitment = await env.DB.prepare(
+    "SELECT 1 FROM commitments WHERE goal_id=? AND user_id=?",
+  )
+    .bind(goal.id, userId)
+    .first();
+  if (!commitment) return null;
+  const rows = (
+    await env.DB.prepare(
+      "SELECT date, SUM(amount_cents) AS cents FROM schedule_events WHERE goal_id=? AND user_id=? AND capture_id IS NULL GROUP BY date ORDER BY date",
+    )
+      .bind(goal.id, userId)
+      .all<{ date: string; cents: number }>()
+  ).results;
+  const final = rows.at(-1);
+  return {
+    cents: rows.reduce((sum, row) => sum + row.cents, 0),
+    finalDate: final?.date ?? null,
+    finalCents: final?.cents ?? 0,
+  };
+}
+
+const scheduleInput = z.object({
+  fromSchedule: z.literal(true),
+  earmarkedLuna: z.number().int().min(0).max(1_000_000_000_000).optional(),
+});
+const toLuna = (cents: number, rate: number) =>
+  Math.ceil((cents * 1000) / rate);
+
+async function scheduleRate() {
+  const unavailable =
+    "A fresh NIM price is unavailable. Try linking the saved schedule again shortly.";
+  const response = await fetch(
+    "https://api.coinpaprika.com/v1/tickers/nim-nimiq",
+    {
+      signal: AbortSignal.timeout(6000),
+      redirect: "manual",
+    },
+  ).catch(() => null);
+  insist(response?.ok, 503, "NIMIQ_QUOTE_UNAVAILABLE", unavailable);
+  const quote = z
+    .object({
+      id: z.literal("nim-nimiq"),
+      last_updated: z.string(),
+      quotes: z.object({
+        USD: z.object({ price: z.number().positive() }),
+      }),
+    })
+    .safeParse(await response.json().catch(() => null));
+  const updated = quote.success
+    ? Date.parse(quote.data.last_updated) / 1000
+    : NaN;
+  insist(
+    quote.success && updated >= now() - 1800 && updated <= now() + 60,
+    503,
+    "NIMIQ_QUOTE_UNAVAILABLE",
+    unavailable,
+  );
+  return quote.data.quotes.USD.price;
+}
+
 export async function nimiqRoutes(request: Request, env: Env, path: string) {
   const match = /^\/api\/goals\/([^/]+)\/nimiq(?:\/([a-f0-9-]+))?$/.exec(path);
   if (!match) return;
@@ -271,7 +373,7 @@ export async function nimiqRoutes(request: Request, env: Env, path: string) {
       .first();
     const savings = enabled
       ? await env.DB.prepare(
-          "SELECT address,target_luna,earmarked_luna,review_date,purchase_date,final_contribution_luna FROM personal_nim_savings WHERE goal_id=? AND user_id=? AND network=?",
+          "SELECT address,target_luna,earmarked_luna,review_date,purchase_date,final_contribution_luna,schedule_usd_rate FROM personal_nim_savings WHERE goal_id=? AND user_id=? AND network=?",
         )
           .bind(goalId, user.id, network)
           .first<PersonalSavings>()
@@ -284,6 +386,13 @@ export async function nimiqRoutes(request: Request, env: Env, path: string) {
         "NIMIQ_SAVINGS_REQUIRED",
         "Save a NIM plan before opening staking.",
       );
+      if (savings.schedule_usd_rate)
+        insist(
+          await scheduleBasis(env, goal, user.id),
+          409,
+          "NIMIQ_SCHEDULE_REQUIRED",
+          "Save your schedule before opening staking.",
+        );
       return stakingStatus(
         env,
         network,
@@ -303,11 +412,27 @@ export async function nimiqRoutes(request: Request, env: Env, path: string) {
           .bind(user.id, network, savings.address)
           .first<{ amount: number }>()
       : null;
+    const basis = savings?.schedule_usd_rate
+      ? await scheduleBasis(env, goal, user.id)
+      : null;
     return json({
       enabled,
       network: enabled ? network : null,
       savings: savings && {
         ...savings,
+        ...(basis && savings.schedule_usd_rate
+          ? {
+              target_luna: Math.max(
+                1,
+                toLuna(basis.cents, savings.schedule_usd_rate),
+              ),
+              purchase_date: basis.finalDate,
+              final_contribution_luna: toLuna(
+                basis.finalCents,
+                savings.schedule_usd_rate,
+              ),
+            }
+          : {}),
         balance,
         totalEarmarked: total?.amount ?? 0,
       },
@@ -325,13 +450,90 @@ export async function nimiqRoutes(request: Request, env: Env, path: string) {
   );
   if (method === "PATCH" && !attemptId) {
     insist(!goal.purchased, 409, "GOAL_CLOSED", "This goal is closed.");
-    const savings = personalSavings.parse(await jsonBody(request));
-    const balance = await walletBalance(env, network, savings.address);
+    const body = await jsonBody(request);
+    const linked = scheduleInput.safeParse(body);
+    let rate: number | null = null;
+    let savings: z.infer<typeof personalSavings>;
+    if (linked.success) {
+      const basis = await scheduleBasis(env, goal, user.id);
+      insist(
+        basis && basis.cents > 0,
+        409,
+        "NIMIQ_SCHEDULE_REQUIRED",
+        "Save a schedule with a remaining contribution before linking staking.",
+      );
+      const existing = await env.DB.prepare(
+        "SELECT address,earmarked_luna,review_date,schedule_usd_rate FROM personal_nim_savings WHERE goal_id=? AND user_id=? AND network=?",
+      )
+        .bind(goalId, user.id, network)
+        .first<PersonalSavings>();
+      const identity = await env.DB.prepare(
+        "SELECT google_sub FROM users WHERE id=?",
+      )
+        .bind(user.id)
+        .first<{ google_sub: string }>();
+      const signer = /^nimiq:([a-f0-9]{64})$/.exec(identity?.google_sub ?? "");
+      insist(
+        signer,
+        409,
+        "NIMIQ_SIGN_IN_REQUIRED",
+        "Sign in with Nimiq Pay to link your schedule.",
+      );
+      const walletAddress = addressFromPublicKey(signer[1]);
+      if (
+        existing?.schedule_usd_rate &&
+        existing.address === walletAddress &&
+        linked.data.earmarkedLuna === undefined
+      ) {
+        return json({ ok: true });
+      }
+      insist(
+        !existing ||
+          existing.address === walletAddress ||
+          existing.earmarked_luna === 0,
+        409,
+        "NIMIQ_WALLET_CHANGED",
+        "Your existing earmark uses a different wallet. It has been preserved.",
+      );
+      rate = existing?.schedule_usd_rate ?? (await scheduleRate());
+      const targetLuna = toLuna(basis.cents, rate);
+      insist(
+        targetLuna <= 1_000_000_000_000,
+        400,
+        "NIMIQ_TARGET_LIMIT",
+        "The converted NIM target exceeds the supported limit.",
+      );
+      const earmarkedLuna =
+        linked.data.earmarkedLuna ??
+        (existing?.address === walletAddress ? existing.earmarked_luna : 0);
+      insist(
+        earmarkedLuna <= targetLuna,
+        409,
+        "NIMIQ_EARMARK_TARGET",
+        "Reduce your earmark before applying this schedule.",
+      );
+      savings = {
+        address: walletAddress,
+        targetLuna,
+        earmarkedLuna,
+        reviewDate: existing?.review_date ?? null,
+        purchaseDate: basis.finalDate,
+        finalContributionLuna: toLuna(basis.finalCents, rate),
+      };
+    } else {
+      savings = personalSavings.parse(body);
+    }
+    const balance =
+      savings.earmarkedLuna === 0
+        ? 0
+        : await walletBalance(env, network, savings.address);
+    const automaticLink =
+      linked.success && linked.data.earmarkedLuna === undefined;
     // Check other goals and write the allocation in the same SQLite statement.
     const result = await env.DB.prepare(
-      "INSERT INTO personal_nim_savings(goal_id,user_id,network,address,target_luna,earmarked_luna,review_date,purchase_date,final_contribution_luna) " +
-        "SELECT ?,?,?,?,?,?,?,?,? WHERE ? = 0 OR ? + COALESCE((SELECT SUM(s.earmarked_luna) FROM personal_nim_savings s JOIN goals g ON g.id=s.goal_id WHERE s.user_id=? AND s.network=? AND s.address=? AND s.goal_id<>? AND g.purchased=0),0) <= ? OR EXISTS (SELECT 1 FROM personal_nim_savings WHERE goal_id=? AND user_id=? AND network=? AND address=? AND earmarked_luna>=?) " +
-        "ON CONFLICT(goal_id,user_id,network) DO UPDATE SET address=excluded.address,target_luna=excluded.target_luna,earmarked_luna=excluded.earmarked_luna,review_date=excluded.review_date,purchase_date=CASE WHEN ? THEN excluded.purchase_date ELSE personal_nim_savings.purchase_date END,final_contribution_luna=CASE WHEN ? THEN excluded.final_contribution_luna ELSE personal_nim_savings.final_contribution_luna END",
+      "INSERT INTO personal_nim_savings(goal_id,user_id,network,address,target_luna,earmarked_luna,review_date,purchase_date,final_contribution_luna,schedule_usd_rate) " +
+        "SELECT ?,?,?,?,?,?,?,?,?,? WHERE ? = 0 OR ? + COALESCE((SELECT SUM(s.earmarked_luna) FROM personal_nim_savings s JOIN goals g ON g.id=s.goal_id WHERE s.user_id=? AND s.network=? AND s.address=? AND s.goal_id<>? AND g.purchased=0),0) <= ? OR EXISTS (SELECT 1 FROM personal_nim_savings WHERE goal_id=? AND user_id=? AND network=? AND address=? AND earmarked_luna>=?) " +
+        "ON CONFLICT(goal_id,user_id,network) DO UPDATE SET address=excluded.address,target_luna=excluded.target_luna,earmarked_luna=excluded.earmarked_luna,review_date=excluded.review_date,purchase_date=CASE WHEN ? THEN excluded.purchase_date ELSE personal_nim_savings.purchase_date END,final_contribution_luna=CASE WHEN ? THEN excluded.final_contribution_luna ELSE personal_nim_savings.final_contribution_luna END,schedule_usd_rate=COALESCE(excluded.schedule_usd_rate,personal_nim_savings.schedule_usd_rate) WHERE personal_nim_savings.schedule_usd_rate IS NULL OR (excluded.schedule_usd_rate IS NOT NULL AND ? = 0)",
     )
       .bind(
         goalId,
@@ -343,6 +545,7 @@ export async function nimiqRoutes(request: Request, env: Env, path: string) {
         savings.reviewDate,
         savings.purchaseDate ?? null,
         savings.finalContributionLuna ?? 0,
+        rate,
         savings.earmarkedLuna,
         savings.earmarkedLuna,
         user.id,
@@ -357,8 +560,17 @@ export async function nimiqRoutes(request: Request, env: Env, path: string) {
         savings.earmarkedLuna,
         Number(savings.purchaseDate !== undefined),
         Number(savings.finalContributionLuna !== undefined),
+        Number(automaticLink),
       )
       .run();
+    if (automaticLink && result.meta.changes === 0) {
+      const linkedRecord = await env.DB.prepare(
+        "SELECT 1 FROM personal_nim_savings WHERE goal_id=? AND user_id=? AND network=? AND address=? AND schedule_usd_rate IS NOT NULL",
+      )
+        .bind(goalId, user.id, network, savings.address)
+        .first();
+      if (linkedRecord) return json({ ok: true });
+    }
     insist(
       result.meta.changes === 1,
       409,

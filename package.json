@@ -26,6 +26,7 @@
     "@fontsource/manrope": "^5.3.0",
     "@fontsource/roboto": "5.2.10",
     "@nimiq/mini-app-sdk": "^0.2.5",
+    "@noble/hashes": "2.4.0",
     "@phosphor-icons/react": "^2.1.10",
     "@radix-ui/react-dialog": "1.1.19",
     "@radix-ui/react-dropdown-menu": "2.1.20",
